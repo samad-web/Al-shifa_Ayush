@@ -1,0 +1,297 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* IWIS Design System - Calm Medical Theme */
+/* Illness → Wellness Intelligence System */
+
+@layer base {
+  :root {
+    /* Core Backgrounds */
+    --background: 210 20% 98%;
+    --foreground: 215 25% 15%;
+
+    /* Card Surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 15%;
+
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 15%;
+
+    /* Primary - Emerald (Healing, Growth) */
+    --primary: 158 64% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary - Slate Blue (Calm, Trust) */
+    --secondary: 215 20% 94%;
+    --secondary-foreground: 215 25% 27%;
+
+    /* Muted - Soft Slate */
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    /* Accent - Soft Blue (Progress, Action) */
+    --accent: 199 89% 48%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Wellness - Success Emerald */
+    --wellness: 158 64% 45%;
+    --wellness-foreground: 0 0% 100%;
+
+    /* Attention - Soft Amber (Not aggressive) */
+    --attention: 38 92% 50%;
+    --attention-foreground: 38 92% 15%;
+
+    /* Risk - Muted Rose (Gentle warning) */
+    --risk: 0 60% 60%;
+    --risk-foreground: 0 0% 100%;
+
+    /* Destructive - Only for critical */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders & Inputs */
+    --border: 214 20% 90%;
+    --input: 214 20% 90%;
+    --ring: 158 64% 40%;
+
+    --radius: 0.75rem;
+
+    /* Progress Ring Colors */
+    --ring-recovery: 158 64% 45%;
+    --ring-adherence: 199 89% 48%;
+    --ring-progress: 158 64% 52%;
+    --ring-track: 210 20% 92%;
+
+    /* Gradients */
+    --gradient-calm: linear-gradient(135deg, hsl(158 64% 96%) 0%, hsl(199 89% 96%) 100%);
+    --gradient-wellness: linear-gradient(135deg, hsl(158 64% 45%) 0%, hsl(158 64% 55%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(210 20% 99%) 100%);
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(215 25% 15% / 0.03);
+    --shadow-md: 0 4px 6px -1px hsl(215 25% 15% / 0.05), 0 2px 4px -2px hsl(215 25% 15% / 0.03);
+    --shadow-lg: 0 10px 15px -3px hsl(215 25% 15% / 0.06), 0 4px 6px -4px hsl(215 25% 15% / 0.04);
+    --shadow-xl: 0 20px 25px -5px hsl(215 25% 15% / 0.07), 0 8px 10px -6px hsl(215 25% 15% / 0.04);
+    --shadow-card: 0 1px 3px 0 hsl(215 25% 15% / 0.04), 0 1px 2px -1px hsl(215 25% 15% / 0.02);
+    --shadow-elevated: 0 8px 24px -4px hsl(215 25% 15% / 0.08);
+
+    /* Sidebar */
+    --sidebar-background: 210 20% 98%;
+    --sidebar-foreground: 215 25% 27%;
+    --sidebar-primary: 158 64% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 20% 94%;
+    --sidebar-accent-foreground: 215 25% 27%;
+    --sidebar-border: 214 20% 90%;
+    --sidebar-ring: 158 64% 40%;
+  }
+
+  .dark {
+    --background: 215 25% 9%;
+    --foreground: 210 20% 96%;
+
+    --card: 215 25% 12%;
+    --card-foreground: 210 20% 96%;
+
+    --popover: 215 25% 12%;
+    --popover-foreground: 210 20% 96%;
+
+    --primary: 158 64% 52%;
+    --primary-foreground: 215 25% 9%;
+
+    --secondary: 215 20% 18%;
+    --secondary-foreground: 210 20% 90%;
+
+    --muted: 215 20% 16%;
+    --muted-foreground: 215 16% 60%;
+
+    --accent: 199 89% 55%;
+    --accent-foreground: 215 25% 9%;
+
+    --wellness: 158 64% 52%;
+    --wellness-foreground: 215 25% 9%;
+
+    --attention: 38 92% 55%;
+    --attention-foreground: 38 92% 10%;
+
+    --risk: 0 55% 55%;
+    --risk-foreground: 0 0% 100%;
+
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 20% 20%;
+    --input: 215 20% 20%;
+    --ring: 158 64% 52%;
+
+    --ring-recovery: 158 64% 55%;
+    --ring-adherence: 199 89% 55%;
+    --ring-progress: 158 64% 58%;
+    --ring-track: 215 20% 20%;
+
+    --sidebar-background: 215 25% 10%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 158 64% 52%;
+    --sidebar-primary-foreground: 215 25% 9%;
+    --sidebar-accent: 215 20% 16%;
+    --sidebar-accent-foreground: 210 20% 90%;
+    --sidebar-border: 215 20% 18%;
+    --sidebar-ring: 158 64% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  /* Card Styles */
+  .card-elevated {
+    @apply bg-card rounded-xl border border-border/50;
+    box-shadow: var(--shadow-card);
+  }
+
+  .card-wellness {
+    @apply bg-gradient-to-br from-wellness/5 to-wellness/10 border-wellness/20;
+  }
+
+  .card-attention {
+    @apply bg-gradient-to-br from-attention/5 to-attention/10 border-attention/20;
+  }
+
+  .card-risk {
+    @apply bg-gradient-to-br from-risk/5 to-risk/10 border-risk/20;
+  }
+
+  /* Status Badges */
+  .badge-wellness {
+    @apply bg-wellness/10 text-wellness border border-wellness/20;
+  }
+
+  .badge-attention {
+    @apply bg-attention/10 text-attention border border-attention/20;
+  }
+
+  .badge-risk {
+    @apply bg-risk/10 text-risk border border-risk/20;
+  }
+
+  /* Progress Ring Animation */
+  @keyframes progress-fill {
+    from {
+      stroke-dashoffset: 283;
+    }
+  }
+
+  .progress-ring-animate {
+    animation: progress-fill 1s ease-out forwards;
+  }
+
+  /* Button Variants */
+  .btn-primary-large {
+    @apply bg-primary text-primary-foreground px-8 py-4 text-lg font-medium rounded-xl;
+    @apply hover:bg-primary/90 transition-all duration-200;
+    @apply active:scale-[0.98] shadow-md hover:shadow-lg;
+  }
+
+  .btn-wellness {
+    @apply bg-wellness text-wellness-foreground;
+    @apply hover:bg-wellness/90 transition-all duration-200;
+  }
+
+  /* Calm Gradient Background */
+  .bg-calm-gradient {
+    background: var(--gradient-calm);
+  }
+
+  /* Gentle Animations */
+  @keyframes gentle-pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+
+  .animate-gentle-pulse {
+    animation: gentle-pulse 3s ease-in-out infinite;
+  }
+
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.5s ease-out forwards;
+  }
+
+  /* Success Check Animation */
+  @keyframes check-pop {
+    0% {
+      transform: scale(0);
+      opacity: 0;
+    }
+    50% {
+      transform: scale(1.2);
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  .animate-check-pop {
+    animation: check-pop 0.4s ease-out forwards;
+  }
+}
+
+@layer utilities {
+  /* Text utilities */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Calm scrollbar */
+  .scrollbar-calm::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-calm::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 3px;
+  }
+
+  .scrollbar-calm::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+
+  .scrollbar-calm::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.3);
+  }
+}
