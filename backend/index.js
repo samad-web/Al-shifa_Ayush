@@ -6,6 +6,7 @@ import authRoutes from './routes/auth.js';
 import userRoutes from './routes/user.js';
 import appointmentsRoutes from './routes/appointments.js';
 import prescriptionRoutes from './routes/prescription.js';
+import consultationRoutes from './routes/consultation.js';
 
 dotenv.config();
 const app = express();
@@ -36,6 +37,7 @@ app.use('/api/user', userRoutes);
 // Appointments routes
 app.use('/api/appointments', appointmentsRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
+app.use('/api/consultations', consultationRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {

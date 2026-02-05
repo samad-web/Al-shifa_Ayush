@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { PrescriptionList } from "@/components/prescription-list";
 
 // Mock data aligned with backend models
 type JourneyStatus = "ON_TRACK" | "AT_RISK" | "COMPLETED";
@@ -42,10 +43,12 @@ export default function PatientScreen() {
 
   useEffect(() => {
     async function fetchPrescriptions() {
-      const res = await fetch(`/api/prescriptions/patient/${profile?.patient?.id || profile?.id}`, { credentials: "include" });
+      const res = await fetch(`/api/prescriptions/patient/${profile?.patient?.id || profile?.id}/view`, { credentials: "include" });
       if (res.ok) setPrescriptions(await res.json());
     }
-    if (profile?.id) fetchPrescriptions();
+    if (profile?.id) {
+      fetchPrescriptions();
+    }
   }, [profile]);
 
   const progress = Math.round((patientData.completedSittings / patientData.totalSittings) * 100);
@@ -187,43 +190,7 @@ export default function PatientScreen() {
                       </button>
                     )}
                   </div>
-                  {prescriptions.length === 0 ? (
-                    <div className="text-center py-8 px-4 border-2 border-dashed border-border rounded-xl">
-                      <p className="text-muted-foreground text-sm">No prescriptions added yet.</p>
-                    </div>
-                  ) : (
-                    <div className="grid gap-4">
-                      {prescriptions.map((rx) => (
-                        <div key={rx.id} className="border border-border/60 rounded-xl p-4 flex flex-col gap-2 hover:border-primary/30 transition-colors bg-secondary/20">
-                          <div className="flex justify-between items-start">
-                            <span className="font-bold text-foreground">{rx.medicationName}</span>
-                            {rx.fileUrl && (
-                              <a href={rx.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-primary hover:underline">View PDF</a>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-2 gap-y-2 text-sm">
-                            <span className="text-muted-foreground">Dosage:</span>
-                            <span className="text-foreground font-medium">{rx.dosage}</span>
-                            <span className="text-muted-foreground">Frequency:</span>
-                            <span className="text-foreground font-medium">{rx.frequency}</span>
-                            <span className="text-muted-foreground">Duration:</span>
-                            <span className="text-foreground font-medium">{rx.duration}</span>
-                          </div>
-                          {rx.notes && (
-                            <div className="mt-1 pt-2 border-t border-border/40">
-                              <p className="text-xs text-muted-foreground">Notes: {rx.notes}</p>
-                            </div>
-                          )}
-                          <div className="mt-1 flex items-center gap-1.5 pt-2 border-t border-border/40">
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary/40" />
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-                              Dr. {rx.doctor?.fullName || rx.therapist?.fullName || "Healthcare Provider"}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <PrescriptionList prescriptions={prescriptions} />
                 </div>
 
                 {/* Notification Placeholders */}
@@ -248,6 +215,7 @@ export default function PatientScreen() {
             variant="subtle"
           />
         </footer>
+
 
         {/* Add Prescription Modal */}
         <Dialog open={showAddModal} onOpenChange={setShowAddModal}>

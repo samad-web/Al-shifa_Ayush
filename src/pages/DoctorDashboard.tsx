@@ -8,16 +8,14 @@ import { EncouragementText } from "@/components/ui/encouragement-text";
 import { useAuth } from "@/hooks/useAuth";
 import { Users, AlertTriangle, Sparkles, CheckCircle2 } from "lucide-react";
 
-// Mock data aligned with backend models
-// Recovery Progress = % of journeys with status ON_TRACK or COMPLETED
-// Medication Adherence = calculated from MedicationLog entries
-const doctorStats = {
-  recoveryProgress: 78,
-  medicationAdherence: 85,
-  activeJourneys: 42, // Count of journeys where status != COMPLETED
-  atRisk: 5, // Count of journeys where status = AT_RISK
-  wellnessEligible: 12, // Journeys nearing completion with good adherence
-  completed: 34, // Count of journeys where status = COMPLETED
+import { useEffect, useState } from "react";
+const initialStats = {
+  recoveryProgress: 0,
+  medicationAdherence: 0,
+  activeJourneys: 0,
+  atRisk: 0,
+  wellnessEligible: 0,
+  completed: 0,
 };
 
 // Patients needing attention - journeys with AT_RISK status
@@ -46,6 +44,31 @@ const getEncouragementMessage = (recoveryProgress: number): string => {
 
 export default function DoctorDashboard() {
   const { profile } = useAuth();
+  const [stats, setStats] = useState(initialStats);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/user/doctor/stats", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch doctor stats:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <AppLayout>
@@ -66,7 +89,7 @@ export default function DoctorDashboard() {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-8 py-6">
           <div className="text-center space-y-3">
             <ProgressRing
-              progress={doctorStats.recoveryProgress}
+              progress={stats.recoveryProgress}
               size={140}
               strokeWidth={10}
               variant="recovery"
@@ -81,7 +104,7 @@ export default function DoctorDashboard() {
           </div>
           <div className="text-center space-y-3">
             <ProgressRing
-              progress={doctorStats.medicationAdherence}
+              progress={stats.medicationAdherence}
               size={140}
               strokeWidth={10}
               variant="adherence"
@@ -99,7 +122,7 @@ export default function DoctorDashboard() {
         {/* Encouragement - Dynamic based on performance */}
         <div className="bg-wellness/5 border border-wellness/20 rounded-xl p-5 text-center">
           <EncouragementText
-            message={getEncouragementMessage(doctorStats.recoveryProgress)}
+            message={getEncouragementMessage(stats.recoveryProgress)}
             variant="prominent"
           />
         </div>
@@ -108,24 +131,24 @@ export default function DoctorDashboard() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             title="Active Journeys"
-            value={doctorStats.activeJourneys}
+            value={stats.activeJourneys}
             icon={Users}
           />
           <StatCard
             title="At Risk"
-            value={doctorStats.atRisk}
+            value={stats.atRisk}
             icon={AlertTriangle}
             variant="attention"
           />
           <StatCard
             title="Wellness Eligible"
-            value={doctorStats.wellnessEligible}
+            value={stats.wellnessEligible}
             icon={Sparkles}
             variant="wellness"
           />
           <StatCard
             title="Completed"
-            value={doctorStats.completed}
+            value={stats.completed}
             icon={CheckCircle2}
           />
         </div>

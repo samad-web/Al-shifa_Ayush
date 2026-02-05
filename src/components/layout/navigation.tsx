@@ -1,16 +1,19 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { 
-  Stethoscope, 
-  User, 
-  Heart, 
+import {
+  Stethoscope,
+  User,
+  Heart,
   Activity,
   Menu,
   X,
-  LogOut
+  LogOut,
+  FilePlus2,
+  CalendarDays
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth, AppRole } from "@/hooks/useAuth";
+import { NotificationBell } from "@/components/NotificationBell";
 
 // Role-based navigation items
 const getRoleNavItems = (role: AppRole | null) => {
@@ -18,31 +21,39 @@ const getRoleNavItems = (role: AppRole | null) => {
     case "ADMIN":
       return [
         { path: "/admin", label: "Admin Dashboard", icon: Stethoscope },
+        { path: "/appointments", label: "Appointments", icon: CalendarDays },
         { path: "/create-user", label: "Create User", icon: User },
         { path: "/assign-patient", label: "Assign Patient", icon: User },
+        { path: "/prescriptions", label: "Prescriptions", icon: FilePlus2 },
         { path: "/doctor-gamification", label: "Doctor Gamification", icon: Activity },
-        // Optionally, add a link to a patient management page if you want a list
       ];
     case "ADMIN_DOCTOR":
       return [
         { path: "/doctor-admin", label: "Dashboard", icon: Stethoscope },
+        { path: "/appointments", label: "Appointments", icon: CalendarDays },
         { path: "/doctor", label: "My Patients", icon: User },
         { path: "/create-user", label: "Create User", icon: User },
         { path: "/assign-patient", label: "Assign Patient", icon: User },
+        { path: "/prescriptions", label: "Prescriptions", icon: FilePlus2 },
         { path: "/doctor-gamification", label: "Doctor Gamification", icon: Activity },
       ];
     case "DOCTOR":
       return [
         { path: "/doctor", label: "Dashboard", icon: User },
+        { path: "/appointments", label: "Appointments", icon: CalendarDays },
+        { path: "/prescriptions", label: "Prescriptions", icon: FilePlus2 },
         { path: "/doctor-gamification", label: "Doctor Gamification", icon: Activity },
       ];
     case "THERAPIST":
       return [
         { path: "/therapist", label: "Today's Sittings", icon: Heart },
+        { path: "/appointments", label: "Appointments", icon: CalendarDays },
+        { path: "/prescriptions", label: "Prescriptions", icon: FilePlus2 },
       ];
     case "PATIENT":
       return [
         { path: "/patient", label: "My Journey", icon: Activity },
+        { path: "/appointments", label: "Appointments", icon: CalendarDays },
       ];
     default:
       return [];
@@ -102,6 +113,7 @@ export function Navigation() {
         </div>
 
         <div className="flex items-center gap-3">
+          <NotificationBell />
           {profile?.full_name && (
             <span className="text-sm text-muted-foreground">
               {profile.full_name}

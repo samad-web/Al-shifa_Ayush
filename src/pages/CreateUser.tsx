@@ -23,7 +23,7 @@ const roles = [
 export default function CreateUser() {
   const { role } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ email: "", password: "", role: "PATIENT" });
+  const [form, setForm] = useState({ email: "", password: "", fullName: "", role: "PATIENT" });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -68,7 +68,7 @@ export default function CreateUser() {
         setError(data.error || "Failed to create user");
       } else {
         setSuccess("User identity created successfully!");
-        setForm({ email: "", password: "", role: "PATIENT" });
+        setForm({ email: "", password: "", fullName: "", role: "PATIENT" });
       }
     } catch (err) {
       setError("Network connectivity error. Please try again.");
@@ -162,6 +162,21 @@ export default function CreateUser() {
                         className="h-12 bg-secondary/30 border-secondary focus:bg-background transition-all rounded-xl"
                       />
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName" className="flex items-center gap-2">
+                      <UserPlus className="w-3.5 h-3.5 text-muted-foreground" />
+                      Full Name
+                    </Label>
+                    <Input
+                      id="fullName"
+                      name="fullName"
+                      placeholder="Dr. Sarah Smith"
+                      value={form.fullName}
+                      onChange={handleChange}
+                      className="h-12 bg-secondary/30 border-secondary focus:bg-background transition-all rounded-xl"
+                    />
                   </div>
 
                   <div className="space-y-2">

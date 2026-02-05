@@ -5,70 +5,70 @@ import { Panel } from "@/components/ui/panel";
 import { PatientCard } from "@/components/ui/patient-card";
 import { DoctorPerformanceBadge, getPerformanceBand } from "@/components/ui/doctor-performance-badge";
 import { useAuth } from "@/hooks/useAuth";
-import { 
-  AlertTriangle, 
-  Sparkles, 
-  Activity, 
+import {
+  AlertTriangle,
+  Sparkles,
+  Activity,
   CheckCircle2,
 } from "lucide-react";
 
-// Mock data aligned with backend models
-const stats = {
-  atRisk: 12,
-  wellnessEligible: 28,
-  activeJourneys: 156,
-  completed: 89,
+import { useEffect, useState } from "react";
+const initialStats = {
+  atRisk: 0,
+  wellnessEligible: 0,
+  activeJourneys: 0,
+  completed: 0,
 };
 
-const atRiskJourneys = [
-  { id: "1", patientName: "Fatima Ahmed", reason: "Missed 3 consecutive sittings", journeyType: "OP" },
-  { id: "2", patientName: "Mohammad Khan", reason: "Medication not marked for 5 days", journeyType: "OP" },
-  { id: "3", patientName: "Ayesha Siddiqui", reason: "Journey progress stalled", journeyType: "OP" },
-  { id: "4", patientName: "Ali Hassan", reason: "Missed last 2 appointments", journeyType: "OP" },
-];
-
-const wellnessEligibleJourneys = [
-  { id: "1", patientName: "Sarah Rahman", sittings: { current: 18, total: 20 }, journeyType: "OP" },
-  { id: "2", patientName: "Imran Malik", sittings: { current: 14, total: 15 }, journeyType: "OP" },
-  { id: "3", patientName: "Zara Qureshi", sittings: { current: 9, total: 10 }, journeyType: "OP" },
-];
-
-const recentAlerts = [
-  { id: "1", type: "urgent", message: "3 patients need immediate attention", priority: 1 },
-  { id: "2", type: "info", message: "Weekly wellness conversion below target", priority: 2 },
-  { id: "3", type: "success", message: "5 journeys completed this week", priority: 3 },
-];
-
-// Doctor comparison with qualitative bands instead of numeric rankings
-const doctorPerformance = [
-  { 
-    name: "Dr. Ahmed", 
-    completionSpeed: 92, // % of journeys completed on time
-    wellnessConversion: 88, // % journeys reaching COMPLETED
-    providesTherapy: true,
-  },
-  { 
-    name: "Dr. Fatima", 
-    completionSpeed: 85, 
-    wellnessConversion: 82,
-    providesTherapy: false,
-  },
-  { 
-    name: "Dr. Hassan", 
-    completionSpeed: 78, 
-    wellnessConversion: 75,
-    providesTherapy: true,
-  },
-  { 
-    name: "Dr. Zara", 
-    completionSpeed: 68, 
-    wellnessConversion: 65,
-    providesTherapy: false,
-  },
-];
+const atRiskJourneys: any[] = [];
+const wellnessEligibleJourneys: any[] = [];
+const recentAlerts: any[] = [];
 
 export default function DoctorAdminDashboard() {
   const { profile } = useAuth();
+  const [dashboardStats, setDashboardStats] = useState(initialStats);
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchStats();
+    fetchDoctors();
+  }, []);
+
+  const fetchDoctors = async () => {
+    try {
+      const res = await fetch("/api/user/doctor-gamification", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDoctors(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch doctors:", error);
+    }
+  };
+
+  const fetchStats = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/user/admin/stats", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDashboardStats(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch admin stats:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <AppLayout>
@@ -82,24 +82,24 @@ export default function DoctorAdminDashboard() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             title="At Risk Journeys"
-            value={stats.atRisk}
+            value={dashboardStats.atRisk}
             icon={AlertTriangle}
             variant="attention"
           />
           <StatCard
             title="Wellness Eligible"
-            value={stats.wellnessEligible}
+            value={dashboardStats.wellnessEligible}
             icon={Sparkles}
             variant="wellness"
           />
           <StatCard
-            title="Active OP Journeys"
-            value={stats.activeJourneys}
+            title="Active Journeys"
+            value={dashboardStats.activeJourneys}
             icon={Activity}
           />
           <StatCard
             title="Completed Journeys"
-            value={stats.completed}
+            value={dashboardStats.completed}
             icon={CheckCircle2}
             variant="wellness"
           />
@@ -114,14 +114,20 @@ export default function DoctorAdminDashboard() {
             variant="attention"
           >
             <div className="space-y-3">
-              {atRiskJourneys.map((journey) => (
-                <PatientCard
-                  key={journey.id}
-                  name={journey.patientName}
-                  reason={journey.reason}
-                  status="at-risk"
-                />
-              ))}
+              {atRiskJourneys.length > 0 ? (
+                atRiskJourneys.map((journey: any) => (
+                  <PatientCard
+                    key={journey.id}
+                    name={journey.patientName}
+                    reason={journey.reason}
+                    status="at-risk"
+                  />
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No at-risk journeys detected.
+                </p>
+              )}
             </div>
           </Panel>
 
@@ -132,14 +138,20 @@ export default function DoctorAdminDashboard() {
             variant="wellness"
           >
             <div className="space-y-3">
-              {wellnessEligibleJourneys.map((journey) => (
-                <PatientCard
-                  key={journey.id}
-                  name={journey.patientName}
-                  sittings={journey.sittings}
-                  status="on-track"
-                />
-              ))}
+              {wellnessEligibleJourneys.length > 0 ? (
+                wellnessEligibleJourneys.map((journey: any) => (
+                  <PatientCard
+                    key={journey.id}
+                    name={journey.patientName}
+                    sittings={journey.sittings}
+                    status="on-track"
+                  />
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No wellness eligible journeys.
+                </p>
+              )}
             </div>
           </Panel>
         </div>
@@ -147,29 +159,33 @@ export default function DoctorAdminDashboard() {
         {/* Recent Alerts (from Alerts table) */}
         <Panel title="Recent Alerts" subtitle="Priority-based signals">
           <div className="space-y-3">
-            {recentAlerts.map((alert) => (
-              <div
-                key={alert.id}
-                className={`flex items-center gap-3 p-3 rounded-lg border ${
-                  alert.priority === 1
+            {recentAlerts.length > 0 ? (
+              recentAlerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className={`flex items-center gap-3 p-3 rounded-lg border ${alert.priority === 1
                     ? "bg-attention/5 border-attention/20"
                     : alert.priority === 2
-                    ? "bg-secondary border-border"
-                    : "bg-wellness/5 border-wellness/20"
-                }`}
-              >
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    alert.priority === 1
+                      ? "bg-secondary border-border"
+                      : "bg-wellness/5 border-wellness/20"
+                    }`}
+                >
+                  <div
+                    className={`w-2 h-2 rounded-full ${alert.priority === 1
                       ? "bg-attention"
                       : alert.priority === 2
-                      ? "bg-muted-foreground"
-                      : "bg-wellness"
-                  }`}
-                />
-                <span className="text-sm text-foreground">{alert.message}</span>
-              </div>
-            ))}
+                        ? "bg-muted-foreground"
+                        : "bg-wellness"
+                      }`}
+                  />
+                  <span className="text-sm text-foreground">{alert.message}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No recent alerts.
+              </p>
+            )}
           </div>
         </Panel>
 
@@ -197,41 +213,45 @@ export default function DoctorAdminDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {doctorPerformance.map((doctor) => (
-                  <tr key={doctor.name} className="border-b border-border/50">
-                    <td className="py-3 px-4 font-medium text-foreground">
-                      {doctor.name}
-                    </td>
-                    <td className="py-3 px-4">
-                      <DoctorPerformanceBadge 
-                        band={getPerformanceBand(doctor.completionSpeed, doctor.wellnessConversion)} 
-                      />
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-24 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-wellness rounded-full"
-                            style={{ width: `${doctor.wellnessConversion}%` }}
-                          />
+                {doctors.map((doctor) => {
+                  const completionSpeed = 75; // Placeholder
+                  const wellnessConversion = 80; // Placeholder
+                  return (
+                    <tr key={doctor.id} className="border-b border-border/50">
+                      <td className="py-3 px-4 font-medium text-foreground">
+                        {doctor.fullName || "Unnamed Doctor"}
+                      </td>
+                      <td className="py-3 px-4">
+                        <DoctorPerformanceBadge
+                          band={getPerformanceBand(completionSpeed, wellnessConversion)}
+                        />
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-24 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-wellness rounded-full"
+                              style={{ width: `${wellnessConversion}%` }}
+                            />
+                          </div>
+                          <span className="text-sm text-muted-foreground">
+                            {wellnessConversion}%
+                          </span>
                         </div>
+                      </td>
+                      <td className="py-3 px-4">
                         <span className="text-sm text-muted-foreground">
-                          {doctor.wellnessConversion}%
+                          {doctor.specialization || "General"}
                         </span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="text-sm text-muted-foreground">
-                        {doctor.providesTherapy ? "Prescribes & Therapy" : "Prescribes Only"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <p className="text-xs text-muted-foreground mt-4 px-4">
-            Performance is based on journey completion speed and wellness conversion rate. 
+            Performance is based on journey completion speed and wellness conversion rate.
             This view supports mentoring and growth, not competition.
           </p>
         </Panel>

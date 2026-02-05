@@ -33,15 +33,39 @@ const loginSchema = z.object({
 
 router.post('/login', async (req, res, next) => {
   try {
-    const { email, password } = loginSchema.parse(req.body);
+    console.log('[LOGIN] Attempt for:', req.body.email, 'Password length:', req.body.password?.length);
+
+    // Validate input
+    const parseResult = loginSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      console.log('[LOGIN] Validation error:', parseResult.error.issues);
+      return res.status(400).json({
+        error: 'Password must be at least 8 characters long'
+      });
+    }
+
+    const { email, password } = parseResult.data;
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+
+    if (!user) {
+      console.log('[LOGIN] User not found:', email);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    console.log('[LOGIN] User found, checking password');
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+
+    if (!valid) {
+      console.log('[LOGIN] Password invalid');
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    console.log('[LOGIN] Success! Role:', user.role);
     const accessToken = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '15m' });
     const refreshToken = jwt.sign({ id: user.id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
     res.json({ accessToken, refreshToken, user: { id: user.id, email: user.email, role: user.role } });
   } catch (err) {
+    console.log('[LOGIN] Unexpected error:', err.message);
     next(err);
   }
 });

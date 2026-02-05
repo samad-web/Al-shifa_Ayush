@@ -77,8 +77,8 @@ router.get('/list-doctors', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCT
   }
 });
 
-// List all patients (admin/doctor-admin only)
-router.get('/list-patients', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR']), async (req, res, next) => {
+// List all patients (admin/doctor/therapist/doctor-admin)
+router.get('/list-patients', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR', 'DOCTOR', 'THERAPIST']), async (req, res, next) => {
   try {
     const patients = await prisma.patient.findMany({ include: { user: true } });
     // Return enriched profile data
@@ -128,6 +128,7 @@ router.get('/me', authMiddleware, async (req, res, next) => {
 const createUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
+  fullName: z.string().optional(),
   role: z.enum(['ADMIN', 'ADMIN_DOCTOR', 'DOCTOR', 'THERAPIST', 'PATIENT'])
 });
 
@@ -145,12 +146,14 @@ router.post('/create', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR'])
         data: { email, password: hashed, role }
       });
 
+      const profileData = { userId: newUser.id, fullName };
+
       if (role === 'DOCTOR' || role === 'ADMIN_DOCTOR') {
-        await tx.doctor.create({ data: { userId: newUser.id } });
+        await tx.doctor.create({ data: profileData });
       } else if (role === 'THERAPIST') {
-        await tx.therapist.create({ data: { userId: newUser.id } });
+        await tx.therapist.create({ data: profileData });
       } else if (role === 'PATIENT') {
-        await tx.patient.create({ data: { userId: newUser.id } });
+        await tx.patient.create({ data: profileData });
       }
 
       return newUser;
@@ -187,10 +190,20 @@ router.post('/assign-patient', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_D
 });
 
 // Get patient details (admin/doctor-admin only)
-router.get('/patient/:id', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR']), async (req, res, next) => {
+router.get('/patient/:id', authMiddleware, async (req, res, next) => {
   try {
+    const requestedPatientId = req.params.id;
+
+    // Permission check: Admin can view any patient, patients can only view themselves
+    const isAdmin = ['ADMIN', 'ADMIN_DOCTOR'].includes(req.user.role);
+    const isOwnProfile = req.user.role === 'PATIENT' && req.user.patient?.id === requestedPatientId;
+
+    if (!isAdmin && !isOwnProfile) {
+      return res.status(403).json({ error: 'Access denied. You can only view your own profile.' });
+    }
+
     const patient = await prisma.patient.findUnique({
-      where: { id: req.params.id },
+      where: { id: requestedPatientId },
       include: {
         user: true,
         appointments: {
@@ -201,8 +214,106 @@ router.get('/patient/:id', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTO
         },
       },
     });
+
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
-    res.json(patient);
+
+    // Return enriched data with email at top level for easier access
+    const enrichedPatient = {
+      ...patient,
+      email: patient.user?.email,
+    };
+
+    res.json(enrichedPatient);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Get doctor statistics
+router.get('/doctor/stats', authMiddleware, roleMiddleware(['DOCTOR', 'ADMIN_DOCTOR']), async (req, res, next) => {
+  try {
+    const doctorRecord = await prisma.doctor.findUnique({
+      where: { userId: req.user.id }
+    });
+
+    if (!doctorRecord) {
+      return res.status(404).json({ error: 'Doctor profile not found' });
+    }
+
+    const doctorId = doctorRecord.id;
+
+    // Active journeys (unique patients with non-completed appointments)
+    const activePatients = await prisma.appointment.groupBy({
+      by: ['patientId'],
+      where: {
+        doctorId,
+        status: { in: ['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS'] }
+      }
+    });
+
+    // Completed journeys
+    const completedAppointments = await prisma.appointment.count({
+      where: {
+        doctorId,
+        status: 'COMPLETED'
+      }
+    });
+
+    // At risk (mock for now, or based on a specific criteria like custom status)
+    const atRiskCount = 0; // In a real app, this would be based on missed sittings or logs
+
+    // Wellness eligible
+    const wellnessEligibleCount = 0;
+
+    // Deriving rates for progress rings
+    const recoveryProgress = 80; // Placeholder
+    const medicationAdherence = 85; // Placeholder
+
+    res.json({
+      activeJourneys: activePatients.length,
+      atRisk: atRiskCount,
+      wellnessEligible: wellnessEligibleCount,
+      completed: completedAppointments,
+      recoveryProgress,
+      medicationAdherence
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Get aggregate admin statistics
+router.get('/admin/stats', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR']), async (req, res, next) => {
+  try {
+    // Total patients
+    const totalPatients = await prisma.patient.count();
+
+    // Active journeys (all unique patients with non-completed appointments)
+    const activePatients = await prisma.appointment.groupBy({
+      by: ['patientId'],
+      where: {
+        status: { in: ['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS'] }
+      }
+    });
+
+    // Completed journeys
+    const totalCompleted = await prisma.appointment.count({
+      where: {
+        status: 'COMPLETED'
+      }
+    });
+
+    // Mock counts for fields not yet fully implemented in schema
+    const atRiskCount = 0;
+    const wellnessEligibleCount = 0;
+
+    res.json({
+      activeJourneys: activePatients.length,
+      atRisk: atRiskCount,
+      wellnessEligible: wellnessEligibleCount,
+      completed: totalCompleted,
+      totalPatients
+    });
   } catch (err) {
     next(err);
   }

@@ -4,12 +4,15 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 import { ProtectedRoute, getRoleRedirectPath } from "@/components/auth/ProtectedRoute";
 import Login from "./pages/Login";
 import Index from "./pages/Index";
 import DoctorAdminDashboard from "./pages/DoctorAdminDashboard";
 import DoctorDashboard from "./pages/DoctorDashboard";
-import TherapistScreen from "./pages/TherapistScreen";
+import TherapistDashboard from "./pages/TherapistDashboard";
+import ConsultationRoom from "./pages/ConsultationRoom";
+import TherapistPatients from "./pages/TherapistPatients";
 import PatientScreen from "./pages/PatientScreen";
 import PatientOnboarding from "./pages/PatientOnboarding";
 import NotFound from "./pages/NotFound";
@@ -19,6 +22,8 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AssignPatient from "./pages/AssignPatient";
 import PatientDetails from "./pages/PatientDetails";
 import DoctorGamification from "./pages/DoctorGamification";
+import PrescriptionManagement from "./pages/PrescriptionManagement";
+import Appointments from "./pages/Appointments";
 
 const queryClient = new QueryClient();
 
@@ -106,6 +111,22 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/prescriptions"
+        element={
+          <ProtectedRoute allowedRoles={["DOCTOR", "THERAPIST", "ADMIN", "ADMIN_DOCTOR"]}>
+            <PrescriptionManagement />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/appointments"
+        element={
+          <ProtectedRoute allowedRoles={["PATIENT", "DOCTOR", "THERAPIST", "ADMIN", "ADMIN_DOCTOR"]}>
+            <Appointments />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/doctor"
         element={
           <ProtectedRoute allowedRoles={["DOCTOR", "ADMIN_DOCTOR"]}>
@@ -117,7 +138,23 @@ function AppRoutes() {
         path="/therapist"
         element={
           <ProtectedRoute allowedRoles={["THERAPIST"]}>
-            <TherapistScreen />
+            <TherapistDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/therapist/session/:appointmentId"
+        element={
+          <ProtectedRoute allowedRoles={["THERAPIST"]}>
+            <ConsultationRoom />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/therapist/patients"
+        element={
+          <ProtectedRoute allowedRoles={["THERAPIST"]}>
+            <TherapistPatients />
           </ProtectedRoute>
         }
       />
@@ -156,11 +193,13 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <BrowserRouter>
       <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <AppRoutes />
-        </TooltipProvider>
+        <NotificationProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <AppRoutes />
+          </TooltipProvider>
+        </NotificationProvider>
       </AuthProvider>
     </BrowserRouter>
   </QueryClientProvider>

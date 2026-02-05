@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -20,6 +22,7 @@ async function fixMissingPatientProfiles() {
 
         if (missingProfiles.length === 0) {
             console.log('✅ All patient users have profiles!');
+            await prisma.$disconnect();
             return;
         }
 
@@ -29,8 +32,6 @@ async function fixMissingPatientProfiles() {
             const created = await prisma.patient.create({
                 data: {
                     userId: user.id,
-                    fullName: user.email.split('@')[0], // Use email prefix as placeholder name
-                    phoneNumber: null,
                 },
             });
             console.log(`   ✅ Created patient profile for ${user.email} (ID: ${created.id})`);

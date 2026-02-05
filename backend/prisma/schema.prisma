@@ -48,6 +48,7 @@ model Therapist {
   specialization  String?
   yearsExperience Int?
   appointments    Appointment[]
+  availability    Availability[]
   prescriptions   Prescription[]
   user            User           @relation(fields: [userId], references: [id])
 }
@@ -79,9 +80,12 @@ model Appointment {
   notes       String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
-  doctor      Doctor     @relation(fields: [doctorId], references: [id])
-  patient     Patient    @relation(fields: [patientId], references: [id])
-  therapist   Therapist? @relation(fields: [therapistId], references: [id])
+  doctor           Doctor     @relation(fields: [doctorId], references: [id])
+  patient          Patient    @relation(fields: [patientId], references: [id])
+  therapist        Therapist? @relation(fields: [therapistId], references: [id])
+  consultationMode String     @default("OFFLINE") // ONLINE or OFFLINE
+  meetingLink      String?
+  sessionNotes     String?
 }
 
 model Prescription {
@@ -100,6 +104,18 @@ model Prescription {
   doctor         Doctor?    @relation(fields: [doctorId], references: [id])
   patient        Patient    @relation(fields: [patientId], references: [id])
   therapist      Therapist? @relation(fields: [therapistId], references: [id])
+}
+
+model Availability {
+  id          String    @id @default(uuid())
+  therapistId String
+  dayOfWeek   Int       // 0-6 (Sunday to Saturday)
+  startTime   String    // HH:mm
+  endTime     String    // HH:mm
+  isApproved  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  therapist   Therapist @relation(fields: [therapistId], references: [id])
 }
 
 enum Role {

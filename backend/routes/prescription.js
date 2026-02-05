@@ -51,13 +51,23 @@ router.get('/patient/:id', authMiddleware, async (req, res, next) => {
   }
 });
 
-// Add prescription (doctor/therapist only)
-router.post('/add', authMiddleware, roleMiddleware(['DOCTOR', 'THERAPIST']), upload.single('file'), async (req, res, next) => {
+// Add prescription (doctor/therapist/admin)
+router.post('/add', authMiddleware, roleMiddleware(['DOCTOR', 'THERAPIST', 'ADMIN', 'ADMIN_DOCTOR']), upload.single('file'), async (req, res, next) => {
   try {
     const { patientId, medicationName, dosage, frequency, duration, notes } = req.body;
     const fileUrl = req.file ? `/uploads/prescriptions/${req.file.filename}` : null;
     let doctorId = null, therapistId = null;
     let allowed = false;
+
+    // ADMIN and ADMIN_DOCTOR can upload for any patient
+    if (['ADMIN', 'ADMIN_DOCTOR'].includes(req.user.role)) {
+      allowed = true;
+      // If admin is also a doctor, link their doctor ID
+      if (req.user.role === 'ADMIN_DOCTOR' && req.user.doctor) {
+        doctorId = req.user.doctor.id;
+      }
+    }
+
     if (req.user.role === 'DOCTOR') {
       doctorId = req.user.doctor.id;
       // Check if doctor is assigned to patient
@@ -88,6 +98,39 @@ router.post('/add', authMiddleware, roleMiddleware(['DOCTOR', 'THERAPIST']), upl
     res.status(201).json(prescription);
   } catch (err) {
     next(err);
+  }
+});
+
+// Universal view endpoint - all authenticated users can view any patient's prescriptions
+router.get('/patient/:id/view', authMiddleware, async (req, res, next) => {
+  try {
+    const patientId = req.params.id;
+    const prescriptions = await prisma.prescription.findMany({
+      where: { patientId },
+      include: {
+        doctor: { include: { user: true } },
+        therapist: { include: { user: true } },
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(prescriptions);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Download prescription file - no role restrictions
+router.get('/download/:filename', authMiddleware, (req, res) => {
+  try {
+    const filename = req.params.filename;
+    const filepath = `uploads/prescriptions/${filename}`;
+    res.download(filepath, (err) => {
+      if (err) {
+        res.status(404).json({ error: 'File not found' });
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Download failed' });
   }
 });
 
