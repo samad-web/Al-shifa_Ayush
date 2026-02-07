@@ -127,7 +127,7 @@ export default function AdminDashboard() {
 
         {/* Quick Actions */}
         <Panel title="Quick Actions" subtitle="Common administrative tasks">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Link
               to="/create-user"
               className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground rounded-lg shadow hover:shadow-lg transition font-semibold"
@@ -136,15 +136,22 @@ export default function AdminDashboard() {
               Create User
             </Link>
             <Link
+              to="/manage-users"
+              className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-risk to-risk/80 text-risk-foreground rounded-lg shadow hover:shadow-lg transition font-semibold"
+            >
+              <Users className="w-5 h-5" />
+              Manage Users
+            </Link>
+            <Link
               to="/assign-patient"
-              className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-wellness to-wellness/80 text-white rounded-lg shadow hover:shadow-lg transition font-semibold"
+              className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-wellness to-wellness/80 text-wellness-foreground rounded-lg shadow hover:shadow-lg transition font-semibold"
             >
               <Users className="w-5 h-5" />
               Assign Patient
             </Link>
             <Link
               to="/doctor-gamification"
-              className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-purple-500 to-purple-700 text-white rounded-lg shadow hover:shadow-lg transition font-semibold"
+              className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-accent to-accent/80 text-accent-foreground rounded-lg shadow hover:shadow-lg transition font-semibold"
             >
               <Activity className="w-5 h-5" />
               Doctor Gamification

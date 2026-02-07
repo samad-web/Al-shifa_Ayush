@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { WebSocketProvider } from "@/contexts/WebSocketContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { ProtectedRoute, getRoleRedirectPath } from "@/components/auth/ProtectedRoute";
 import Login from "./pages/Login";
@@ -24,6 +25,11 @@ import PatientDetails from "./pages/PatientDetails";
 import DoctorGamification from "./pages/DoctorGamification";
 import PrescriptionManagement from "./pages/PrescriptionManagement";
 import Appointments from "./pages/Appointments";
+import ManageUsers from "./pages/ManageUsers";
+import PharmacyDashboard from "./pages/PharmacyDashboard";
+import MedicineInventory from "./pages/MedicineInventory";
+import PharmacyDispense from "./pages/PharmacyDispense";
+import PharmacyHistory from "./pages/PharmacyHistory";
 
 const queryClient = new QueryClient();
 
@@ -182,6 +188,46 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/manage-users"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN", "ADMIN_DOCTOR"]}>
+            <ManageUsers />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pharmacy"
+        element={
+          <ProtectedRoute allowedRoles={["PHARMACIST", "ADMIN", "ADMIN_DOCTOR"]}>
+            <PharmacyDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pharmacy/inventory"
+        element={
+          <ProtectedRoute allowedRoles={["PHARMACIST", "ADMIN", "ADMIN_DOCTOR"]}>
+            <MedicineInventory />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pharmacy/dispense"
+        element={
+          <ProtectedRoute allowedRoles={["PHARMACIST", "ADMIN", "ADMIN_DOCTOR"]}>
+            <PharmacyDispense />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pharmacy/history"
+        element={
+          <ProtectedRoute allowedRoles={["PHARMACIST", "ADMIN", "ADMIN_DOCTOR"]}>
+            <PharmacyHistory />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Catch-All */}
       <Route path="*" element={<NotFound />} />
@@ -193,16 +239,19 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <BrowserRouter>
       <AuthProvider>
-        <NotificationProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <AppRoutes />
-          </TooltipProvider>
-        </NotificationProvider>
+        <WebSocketProvider>
+          <NotificationProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <AppRoutes />
+            </TooltipProvider>
+          </NotificationProvider>
+        </WebSocketProvider>
       </AuthProvider>
     </BrowserRouter>
   </QueryClientProvider>
 );
 
 export default App;
+

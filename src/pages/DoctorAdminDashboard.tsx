@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/layout/app-layout";
 import { PageHeader } from "@/components/layout/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -10,6 +11,8 @@ import {
   Sparkles,
   Activity,
   CheckCircle2,
+  Users,
+  UserPlus,
 } from "lucide-react";
 
 import { useEffect, useState } from "react";
@@ -18,11 +21,12 @@ const initialStats = {
   wellnessEligible: 0,
   activeJourneys: 0,
   completed: 0,
+  atRiskJourneys: [],
+  wellnessEligibleJourneys: [],
+  recentAlerts: [],
 };
 
-const atRiskJourneys: any[] = [];
-const wellnessEligibleJourneys: any[] = [];
-const recentAlerts: any[] = [];
+
 
 export default function DoctorAdminDashboard() {
   const { profile } = useAuth();
@@ -114,8 +118,8 @@ export default function DoctorAdminDashboard() {
             variant="attention"
           >
             <div className="space-y-3">
-              {atRiskJourneys.length > 0 ? (
-                atRiskJourneys.map((journey: any) => (
+              {(dashboardStats.atRiskJourneys || []).length > 0 ? (
+                dashboardStats.atRiskJourneys.map((journey: any) => (
                   <PatientCard
                     key={journey.id}
                     name={journey.patientName}
@@ -138,8 +142,8 @@ export default function DoctorAdminDashboard() {
             variant="wellness"
           >
             <div className="space-y-3">
-              {wellnessEligibleJourneys.length > 0 ? (
-                wellnessEligibleJourneys.map((journey: any) => (
+              {(dashboardStats.wellnessEligibleJourneys || []).length > 0 ? (
+                dashboardStats.wellnessEligibleJourneys.map((journey: any) => (
                   <PatientCard
                     key={journey.id}
                     name={journey.patientName}
@@ -156,11 +160,45 @@ export default function DoctorAdminDashboard() {
           </Panel>
         </div>
 
+        {/* Quick Actions */}
+        <Panel title="Quick Actions" subtitle="Common administrative tasks">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Link
+              to="/create-user"
+              className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground rounded-lg shadow hover:shadow-lg transition font-semibold"
+            >
+              <UserPlus className="w-5 h-5" />
+              Create User
+            </Link>
+            <Link
+              to="/manage-users"
+              className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-risk to-risk/80 text-risk-foreground rounded-lg shadow hover:shadow-lg transition font-semibold"
+            >
+              <Users className="w-5 h-5" />
+              Manage Users
+            </Link>
+            <Link
+              to="/assign-patient"
+              className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-wellness to-wellness/80 text-wellness-foreground rounded-lg shadow hover:shadow-lg transition font-semibold"
+            >
+              <Users className="w-5 h-5" />
+              Assign Patient
+            </Link>
+            <Link
+              to="/doctor-gamification"
+              className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-accent to-accent/80 text-accent-foreground rounded-lg shadow hover:shadow-lg transition font-semibold"
+            >
+              <Activity className="w-5 h-5" />
+              Doctor Gamification
+            </Link>
+          </div>
+        </Panel>
+
         {/* Recent Alerts (from Alerts table) */}
         <Panel title="Recent Alerts" subtitle="Priority-based signals">
           <div className="space-y-3">
-            {recentAlerts.length > 0 ? (
-              recentAlerts.map((alert) => (
+            {(dashboardStats.recentAlerts || []).length > 0 ? (
+              dashboardStats.recentAlerts.map((alert: any) => (
                 <div
                   key={alert.id}
                   className={`flex items-center gap-3 p-3 rounded-lg border ${alert.priority === 1

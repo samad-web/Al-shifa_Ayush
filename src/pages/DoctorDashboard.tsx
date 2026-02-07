@@ -16,20 +16,11 @@ const initialStats = {
   atRisk: 0,
   wellnessEligible: 0,
   completed: 0,
+  patientsNeedingAttention: [],
+  patientsNearingWellness: [],
 };
 
-// Patients needing attention - journeys with AT_RISK status
-const patientsNeedingAttention = [
-  { id: "1", name: "Fatima Ahmed", reason: "Missed 2 sittings this week" },
-  { id: "2", name: "Hassan Ali", reason: "Medication gap detected" },
-];
 
-// Patients nearing wellness - journeys close to total_sittings
-const patientsNearingWellness = [
-  { id: "1", name: "Sarah Khan", sittings: { current: 18, total: 20 } },
-  { id: "2", name: "Imran Qureshi", sittings: { current: 9, total: 10 } },
-  { id: "3", name: "Zara Malik", sittings: { current: 14, total: 15 } },
-];
 
 // Encouragement messages based on performance
 const getEncouragementMessage = (recoveryProgress: number): string => {
@@ -161,8 +152,8 @@ export default function DoctorDashboard() {
             variant="attention"
           >
             <div className="space-y-3">
-              {patientsNeedingAttention.length > 0 ? (
-                patientsNeedingAttention.map((patient) => (
+              {(stats.patientsNeedingAttention || []).length > 0 ? (
+                stats.patientsNeedingAttention.map((patient: any) => (
                   <PatientCard
                     key={patient.id}
                     name={patient.name}
@@ -184,14 +175,20 @@ export default function DoctorDashboard() {
             variant="wellness"
           >
             <div className="space-y-3">
-              {patientsNearingWellness.map((patient) => (
-                <PatientCard
-                  key={patient.id}
-                  name={patient.name}
-                  sittings={patient.sittings}
-                  status="on-track"
-                />
-              ))}
+              {(stats.patientsNearingWellness || []).length > 0 ? (
+                stats.patientsNearingWellness.map((patient: any) => (
+                  <PatientCard
+                    key={patient.id}
+                    name={patient.name}
+                    sittings={patient.sittings}
+                    status="on-track"
+                  />
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No patients nearing wellness yet ✨
+                </p>
+              )}
             </div>
           </Panel>
         </div>

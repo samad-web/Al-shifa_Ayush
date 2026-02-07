@@ -18,6 +18,7 @@ const roles = [
   { value: "DOCTOR", label: "Practicing Doctor" },
   { value: "THERAPIST", label: "Clinical Therapist" },
   { value: "PATIENT", label: "Patient" },
+  { value: "PHARMACIST", label: "Pharmacist" },
 ];
 
 export default function CreateUser() {

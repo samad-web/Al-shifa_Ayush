@@ -1,9 +1,10 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { toast } from "sonner";
+import { useWebSocket } from "./WebSocketContext";
 
 export interface Notification {
     id: string;
-    type: "appointment_confirmed" | "appointment_rejected" | "appointment_cancelled" | "info";
+    type: string;
     title: string;
     message: string;
     timestamp: Date;
@@ -18,35 +19,95 @@ interface NotificationContextType {
     markAsRead: (id: string) => void;
     markAllAsRead: () => void;
     clearNotifications: () => void;
+    fetchNotifications: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
 export function NotificationProvider({ children }: { children: ReactNode }) {
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const { socket } = useWebSocket();
 
-    // Load notifications from localStorage on mount
-    useEffect(() => {
-        const stored = localStorage.getItem("notifications");
-        if (stored) {
-            try {
-                const parsed = JSON.parse(stored);
-                setNotifications(parsed.map((n: any) => ({
+    // Fetch notifications from backend
+    const fetchNotifications = async () => {
+        try {
+            const token = localStorage.getItem('accessToken');
+            if (!token) return;
+
+            const res = await fetch(`${API_BASE_URL}/api/notifications?take=50`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setNotifications(data.notifications.map((n: any) => ({
                     ...n,
-                    timestamp: new Date(n.timestamp),
+                    timestamp: new Date(n.createdAt),
+                    read: n.isRead,
                 })));
-            } catch (e) {
-                console.error("Failed to parse stored notifications:", e);
+                setUnreadCount(data.unreadCount);
             }
+        } catch (error) {
+            console.error('Failed to fetch notifications:', error);
         }
+    };
+
+    // Fetch unread count
+    const fetchUnreadCount = async () => {
+        try {
+            const token = localStorage.getItem('accessToken');
+            if (!token) return;
+
+            const res = await fetch(`${API_BASE_URL}/api/notifications/unread-count`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setUnreadCount(data.count);
+            }
+        } catch (error) {
+            console.error('Failed to fetch unread count:', error);
+        }
+    };
+
+    // Initial fetch on mount
+    useEffect(() => {
+        fetchNotifications();
+        fetchUnreadCount();
     }, []);
 
-    // Save notifications to localStorage whenever they change
+    // Listen to WebSocket notifications
     useEffect(() => {
-        if (notifications.length > 0) {
-            localStorage.setItem("notifications", JSON.stringify(notifications));
-        }
-    }, [notifications]);
+        if (!socket) return;
+
+        const handleNotification = (notification: any) => {
+            console.log('[NotificationContext] Received notification:', notification);
+
+            const newNotif: Notification = {
+                ...notification,
+                timestamp: new Date(notification.createdAt),
+                read: notification.isRead,
+            };
+
+            setNotifications((prev) => [newNotif, ...prev]);
+            setUnreadCount((prev) => prev + 1);
+
+            // Show toast
+            toast.info(notification.title, {
+                description: notification.message,
+            });
+        };
+
+        socket.on('notification', handleNotification);
+
+        return () => {
+            socket.off('notification', handleNotification);
+        };
+    }, [socket]);
 
     const addNotification = (notification: Omit<Notification, "id" | "timestamp" | "read">) => {
         const newNotification: Notification = {
@@ -57,39 +118,54 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         };
 
         setNotifications((prev) => [newNotification, ...prev]);
+        setUnreadCount((prev) => prev + 1);
 
         // Show toast notification
-        if (notification.type === "appointment_confirmed") {
-            toast.success(notification.title, {
-                description: notification.message,
-            });
-        } else if (notification.type === "appointment_rejected") {
-            toast.error(notification.title, {
-                description: notification.message,
-            });
-        } else {
-            toast.info(notification.title, {
-                description: notification.message,
-            });
+        toast.info(notification.title, {
+            description: notification.message,
+        });
+    };
+
+    const markAsRead = async (id: string) => {
+        try {
+            const token = localStorage.getItem('accessToken');
+            if (token) {
+                await fetch(`${API_BASE_URL}/api/notifications/${id}/read`, {
+                    method: 'PUT',
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+            }
+
+            setNotifications((prev) =>
+                prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+            );
+            setUnreadCount((prev) => Math.max(0, prev - 1));
+        } catch (error) {
+            console.error('Failed to mark notification as read:', error);
         }
     };
 
-    const markAsRead = (id: string) => {
-        setNotifications((prev) =>
-            prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-        );
-    };
+    const markAllAsRead = async () => {
+        try {
+            const token = localStorage.getItem('accessToken');
+            if (token) {
+                await fetch(`${API_BASE_URL}/api/notifications/read-all`, {
+                    method: 'PUT',
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+            }
 
-    const markAllAsRead = () => {
-        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+            setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+            setUnreadCount(0);
+        } catch (error) {
+            console.error('Failed to mark all as read:', error);
+        }
     };
 
     const clearNotifications = () => {
         setNotifications([]);
-        localStorage.removeItem("notifications");
+        setUnreadCount(0);
     };
-
-    const unreadCount = notifications.filter((n) => !n.read).length;
 
     return (
         <NotificationContext.Provider
@@ -100,6 +176,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                 markAsRead,
                 markAllAsRead,
                 clearNotifications,
+                fetchNotifications,
             }}
         >
             {children}

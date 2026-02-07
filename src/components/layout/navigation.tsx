@@ -9,11 +9,14 @@ import {
   X,
   LogOut,
   FilePlus2,
-  CalendarDays
+  CalendarDays,
+  Package,
+  ShoppingCart,
+  History
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth, AppRole } from "@/hooks/useAuth";
-import { NotificationBell } from "@/components/NotificationBell";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 // Role-based navigation items
 const getRoleNavItems = (role: AppRole | null) => {
@@ -54,6 +57,13 @@ const getRoleNavItems = (role: AppRole | null) => {
       return [
         { path: "/patient", label: "My Journey", icon: Activity },
         { path: "/appointments", label: "Appointments", icon: CalendarDays },
+      ];
+    case "PHARMACIST":
+      return [
+        { path: "/pharmacy", label: "Dashboard", icon: Stethoscope },
+        { path: "/pharmacy/inventory", label: "Inventory", icon: Package },
+        { path: "/pharmacy/dispense", label: "Dispense", icon: ShoppingCart },
+        { path: "/pharmacy/history", label: "History", icon: History },
       ];
     default:
       return [];
