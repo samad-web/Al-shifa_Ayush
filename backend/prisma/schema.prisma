@@ -93,6 +93,7 @@ model Patient {
   payments      Payment[]
   pharmacyDispenses PharmacyDispense[]
   invoices      Invoice[]
+  triageSessions TriageSession[]
 }
 
 model Appointment {
@@ -111,6 +112,8 @@ model Appointment {
   consultationMode String     @default("OFFLINE") // ONLINE or OFFLINE
   meetingLink      String?
   sessionNotes     String?
+  triageSessionId  String?    @unique
+  triageSession    TriageSession? @relation(fields: [triageSessionId], references: [id])
 }
 
 model Prescription {
@@ -193,9 +196,12 @@ model Document {
   updatedAt   DateTime @updatedAt
   patient     Patient  @relation(fields: [patientId], references: [id])
   uploader    User     @relation(fields: [uploadedBy], references: [id])
+  triageSessionId String?
+  triageSession TriageSession? @relation(fields: [triageSessionId], references: [id])
   
   @@index([patientId])
   @@index([category])
+  @@index([triageSessionId])
 }
 
 model Journey {
@@ -368,4 +374,20 @@ model InvoiceItem {
   medicineId  String?
   invoice     Invoice  @relation(fields: [invoiceId], references: [id])
   medicine    Medicine? @relation(fields: [medicineId], references: [id])
+}
+
+model TriageSession {
+  id                 String       @id @default(uuid())
+  patientId          String
+  responses          Json         // Stores all questionnaire answers: painArea, severity, symptoms, etc.
+  severity           String       // LOW, MEDIUM, HIGH, EMERGENCY
+  suggestedSpecialty String?
+  isEscalated        Boolean      @default(false)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  patient            Patient      @relation(fields: [patientId], references: [id])
+  appointment        Appointment?
+  documents          Document[]
+
+  @@index([patientId])
 }

@@ -15,6 +15,7 @@ import notificationRoutes from './routes/notifications.js';
 import reportsRoutes from './routes/reports.js';
 import bulkRoutes from './routes/bulk.js';
 import pharmacyRoutes from './routes/pharmacy.js';
+import triageRoutes from './routes/triage.js';
 import { initializeWebSocket } from './websocket/index.js';
 import { schedulerService } from './services/scheduler.service.js';
 
@@ -65,6 +66,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/bulk', bulkRoutes);
 app.use('/api/pharmacy', pharmacyRoutes);
+app.use('/api/triage', triageRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {

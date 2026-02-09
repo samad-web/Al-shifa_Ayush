@@ -110,6 +110,30 @@ router.post('/', authMiddleware, roleMiddleware(['PATIENT', 'ADMIN', 'ADMIN_DOCT
       actualPatientId = patientId;
     }
 
+    // --- TRIAGE VALIDATION ---
+    const { triageSessionId } = req.body;
+
+    // Check if the target doctor is an Admin Doctor
+    const targetDoctor = await prisma.doctor.findUnique({
+      where: { id: doctorId },
+      include: { user: true }
+    });
+
+    if (targetDoctor?.user?.role === 'ADMIN_DOCTOR') {
+      if (!triageSessionId) {
+        return res.status(400).json({ error: 'Triage assessment is required before booking with the Admin Doctor.' });
+      }
+
+      const triage = await prisma.triageSession.findUnique({
+        where: { id: triageSessionId }
+      });
+
+      if (!triage || (triage.severity !== 'HIGH' && triage.severity !== 'EMERGENCY' && !triage.isEscalated)) {
+        return res.status(403).json({ error: 'Your case does not qualify for an Admin Doctor appointment at this time. Please book with a general specialist.' });
+      }
+    }
+    // -------------------------
+
     console.log('[CREATE APPOINTMENT] actualPatientId:', actualPatientId);
     console.log('[CREATE APPOINTMENT] doctorId:', doctorId);
     console.log('[CREATE APPOINTMENT] therapistId:', therapistId);
@@ -173,6 +197,7 @@ router.post('/', authMiddleware, roleMiddleware(['PATIENT', 'ADMIN', 'ADMIN_DOCT
         date: new Date(date),
         status: req.user.role === 'PATIENT' ? 'PENDING' : (status || 'CONFIRMED'),
         notes,
+        triageSessionId
       },
       include: {
         doctor: { include: { user: { select: { email: true } } } },
