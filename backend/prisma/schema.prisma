@@ -24,23 +24,26 @@ model User {
   uploadedDocuments Document[]
   bulkOperations BulkOperation[]
   pharmacyDispenses PharmacyDispense[]
+  sentMessages                Message[]
 }
 
 model Doctor {
-  id              String         @id @default(uuid())
-  userId          String         @unique
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  clinic          String?
-  fullName        String?
-  profilePhoto    String?
-  qualification   String?
-  specialization  String?
-  yearsExperience Int?
-  appointments    Appointment[]
-  user            User           @relation(fields: [userId], references: [id])
-  prescriptions   Prescription[]
-  journeys        Journey[]
+  id                 String              @id @default(uuid())
+  userId             String              @unique
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  clinic             String?
+  fullName           String?
+  profilePhoto       String?
+  qualification      String?
+  specialization     String?
+  yearsExperience    Int?
+  appointments       Appointment[]
+  user               User                @relation(fields: [userId], references: [id])
+  prescriptions      Prescription[]
+  journeys           Journey[]
+  videoPrescriptions VideoPrescription[]
+  conversations      Conversation[]
 }
 
 model Therapist {
@@ -59,6 +62,7 @@ model Therapist {
   prescriptions   Prescription[]
   user            User           @relation(fields: [userId], references: [id])
   journeys        Journey[]
+  videoPrescriptions VideoPrescription[]
 }
 
 model Pharmacist {
@@ -92,8 +96,55 @@ model Patient {
   journeys      Journey[]
   payments      Payment[]
   pharmacyDispenses PharmacyDispense[]
-  invoices      Invoice[]
-  triageSessions TriageSession[]
+  onboardingCompleted Boolean @default(false)
+  onboardingData      Json?     // Stores mandatory onboarding flow questionnaire data
+  zenPoints           Int       @default(0)
+  invoices            Invoice[]
+  triageSessions      TriageSession[]
+  dailyCheckIns       DailyCheckIn[]
+  videoPrescriptions  VideoPrescription[]
+  conversations       Conversation[]
+}
+
+model DailyCheckIn {
+  id          String   @id @default(uuid())
+  patientId   String
+  painLevel   Int
+  sleepHours  Float
+  mood        String   // HAPPY, NEUTRAL, SAD, etc.
+  notes       String?
+  createdAt   DateTime @default(now())
+  patient     Patient  @relation(fields: [patientId], references: [id])
+
+  @@index([patientId, createdAt])
+}
+
+model ExerciseVideo {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  videoUrl    String
+  thumbnail   String?
+  category    String   // YOGA, PHYSIO, MEDITATION
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  prescriptions VideoPrescription[]
+}
+
+model VideoPrescription {
+  id          String        @id @default(uuid())
+  patientId   String
+  doctorId    String?
+  therapistId String?
+  videoId     String
+  notes       String?
+  createdAt   DateTime      @default(now())
+  patient     Patient       @relation(fields: [patientId], references: [id])
+  video       ExerciseVideo @relation(fields: [videoId], references: [id])
+  doctor      Doctor?       @relation(fields: [doctorId], references: [id])
+  therapist   Therapist?    @relation(fields: [therapistId], references: [id])
+
+  @@index([patientId])
 }
 
 model Appointment {
@@ -390,4 +441,33 @@ model TriageSession {
   documents          Document[]
 
   @@index([patientId])
+}
+
+model Conversation {
+  id        String    @id @default(uuid())
+  patientId String
+  doctorId  String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  patient   Patient   @relation(fields: [patientId], references: [id])
+  doctor    Doctor    @relation(fields: [doctorId], references: [id])
+  messages  Message[]
+
+  @@unique([patientId, doctorId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String
+  isRead         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  sender         User         @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId])
+  @@index([createdAt])
 }

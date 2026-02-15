@@ -1,5 +1,8 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 let io;
 
@@ -43,6 +46,54 @@ export function initializeWebSocket(httpServer) {
 
         // Also join role-specific rooms
         socket.join(`role:${socket.userRole}`);
+
+        // Chat Handlers
+        socket.on('join_conversation', (conversationId) => {
+            socket.join(`conversation:${conversationId}`);
+            console.log(`[WebSocket] User ${socket.userId} joined conversation ${conversationId}`);
+        });
+
+        socket.on('send_message', async ({ conversationId, content }) => {
+            try {
+                // Persist message to DB
+                const message = await prisma.message.create({
+                    data: {
+                        conversationId,
+                        senderId: socket.userId,
+                        content
+                    },
+                    include: {
+                        sender: {
+                            select: {
+                                id: true,
+                                email: true,
+                                role: true,
+                                doctor: { select: { fullName: true, profilePhoto: true } },
+                                patient: { select: { fullName: true } }
+                            }
+                        }
+                    }
+                });
+
+                // Emit to the conversation room
+                io.to(`conversation:${conversationId}`).emit('new_message', message);
+
+                // Also notify participants if they aren't in the room? 
+                // For now, simple room-based.
+
+                console.log(`[WebSocket] Message sent in ${conversationId} by ${socket.userId}`);
+            } catch (err) {
+                console.error('[WebSocket] Send message error:', err);
+                socket.emit('error', { message: 'Failed to send message' });
+            }
+        });
+
+        socket.on('typing', ({ conversationId, isTyping }) => {
+            socket.to(`conversation:${conversationId}`).emit('user_typing', {
+                userId: socket.userId,
+                isTyping
+            });
+        });
 
         socket.on('disconnect', () => {
             console.log(`[WebSocket] User ${socket.userId} disconnected`);

@@ -138,6 +138,21 @@ export function AppointmentModal({
                         phoneNumber: patientData.phoneNumber || "",
                         email: patientData.email || patientData.user?.email || "",
                     });
+
+                    // Pre-populate notes with onboarding data if it's a new appointment
+                    if (!isEditing && patientData.onboardingData) {
+                        const od = patientData.onboardingData;
+                        const onboardingSummary = `[Baseline Info] 
+Gender: ${od.gender || 'Not specified'}
+Sleep: ${od.sleepBedtime || ''}-${od.sleepWakeTime || ''} (${od.sleepDuration}h)
+Pain Level: ${od.painLevel}/10
+Pain Locations: ${od.painLocations?.join(', ') || 'N/A'}`;
+
+                        setFormData(prev => ({
+                            ...prev,
+                            notes: prev.notes ? `${prev.notes}\n\n${onboardingSummary}` : onboardingSummary
+                        }));
+                    }
                 }
             } catch (error) {
                 console.error("Failed to fetch patient details:", error);

@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import express from 'express';
 import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
 import multer from 'multer';
+import { inventoryService } from '../services/inventory.service.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -95,7 +96,19 @@ router.post('/add', authMiddleware, roleMiddleware(['DOCTOR', 'THERAPIST', 'ADMI
         notes,
       }
     });
-    res.status(201).json(prescription);
+
+    // Integrated Real-time Inventory Check
+    let stockStatus = null;
+    try {
+      stockStatus = await inventoryService.checkStockByMedicineName(medicationName);
+    } catch (stockErr) {
+      console.warn('Real-time stock check failed:', stockErr);
+    }
+
+    res.status(201).json({
+      ...prescription,
+      stockStatus: stockStatus || { available: 'unknown', reason: 'Stock check service unavailable' }
+    });
   } catch (err) {
     next(err);
   }

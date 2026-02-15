@@ -184,9 +184,48 @@ router.get('/me', authMiddleware, async (req, res, next) => {
       role: user.role,
       doctor: user.doctor,
       therapist: user.therapist,
-      patient: user.patient,
+      patient: user.patient ? {
+        ...user.patient,
+        onboardingCompleted: user.patient.onboardingCompleted,
+      } : null,
       pharmacist: user.pharmacist,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Update patient onboarding data
+const onboardingSchema = z.object({
+  gender: z.string().optional(),
+  sleepBedtime: z.string().optional(),
+  sleepWakeTime: z.string().optional(),
+  sleepDuration: z.number().optional(),
+  painLevel: z.number().min(0).max(10).optional(),
+  painLocations: z.array(z.string()).optional(),
+  otherHealthInputs: z.record(z.any()).optional(),
+});
+
+router.put('/patient/onboarding', authMiddleware, roleMiddleware(['PATIENT']), async (req, res, next) => {
+  try {
+    const data = onboardingSchema.parse(req.body);
+    const patient = await prisma.patient.findUnique({
+      where: { userId: req.user.id }
+    });
+
+    if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+
+    await prisma.patient.update({
+      where: { id: patient.id },
+      data: {
+        gender: data.gender || patient.gender,
+        onboardingCompleted: true,
+        onboardingData: data,
+        zenPoints: { increment: 50 }
+      }
+    });
+
+    res.json({ message: 'Onboarding completed successfully' });
   } catch (err) {
     next(err);
   }

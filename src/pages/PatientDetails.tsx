@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { Activity } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
@@ -34,7 +35,26 @@ export default function PatientDetails() {
       <div className="mb-2"><b>Email:</b> {patient.user?.email}</div>
       <div className="mb-2"><b>Phone:</b> {patient.phoneNumber || "Not provided"}</div>
       <div className="mb-2"><b>Patient ID:</b> {patient.id}</div>
-      <div className="mb-2"><b>Appointments:</b></div>
+
+      {patient.onboardingData && (
+        <div className="mt-6 p-4 bg-primary/5 rounded-lg border border-primary/20">
+          <h3 className="font-bold text-primary mb-3 flex items-center gap-2">
+            <Activity className="w-4 h-4" />
+            Baseline Health Data (Onboarding)
+          </h3>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div><b>Gender:</b> {patient.onboardingData.gender}</div>
+            <div><b>Pain Level:</b> {patient.onboardingData.painLevel}/10</div>
+            <div><b>Sleep Schedule:</b> {patient.onboardingData.sleepBedtime} - {patient.onboardingData.sleepWakeTime}</div>
+            <div><b>Sleep Duration:</b> {patient.onboardingData.sleepDuration} hours</div>
+            <div className="col-span-2">
+              <b>Pain Locations:</b> {patient.onboardingData.painLocations?.join(', ') || "None reported"}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-6 mb-2"><b>Appointments:</b></div>
       <ul className="list-disc ml-6">
         {patient.appointments.map((appt: any) => (
           <li key={appt.id}>

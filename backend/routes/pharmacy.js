@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import express from 'express';
 import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
+import { inventoryService } from '../services/inventory.service.js';
 const router = express.Router();
 
 const prisma = new PrismaClient();
@@ -135,25 +136,27 @@ router.post('/dispense', authMiddleware, roleMiddleware(['PHARMACIST', 'ADMIN', 
         // Start a transaction
         const result = await prisma.$transaction(async (tx) => {
             let totalAmount = 0;
+            const itemsWithPrices = [];
 
-            // 1. Calculate total and verify stock
+            // 1. Verify and Pick Prices
             for (const item of items) {
                 const medicine = await tx.medicine.findUnique({ where: { id: item.medicineId } });
                 if (!medicine) throw new Error(`Medicine ${item.medicineId} not found`);
 
-                totalAmount += medicine.price * item.quantity;
+                const itemTotalPrice = medicine.price * item.quantity;
+                totalAmount += itemTotalPrice;
 
-                // 2. Deduct from stock
-                const stock = await tx.medicineStock.findUnique({ where: { id: item.stockId } });
-                if (!stock || stock.quantity < item.quantity) {
-                    throw new Error(`Insufficient stock for medicine ${medicine.name} (Batch: ${stock?.batchNumber || 'Unknown'})`);
-                }
-
-                await tx.medicineStock.update({
-                    where: { id: item.stockId },
-                    data: { quantity: { decrement: item.quantity } }
+                itemsWithPrices.push({
+                    medicineId: item.medicineId,
+                    quantity: item.quantity,
+                    unitPrice: medicine.price,
+                    totalPrice: itemTotalPrice,
+                    stockId: item.stockId
                 });
             }
+
+            // 2. Deduct from stock using InventoryService
+            await inventoryService.deductStock(tx, items);
 
             // 3. Create PharmacyDispense record
             const dispense = await tx.pharmacyDispense.create({
@@ -163,11 +166,11 @@ router.post('/dispense', authMiddleware, roleMiddleware(['PHARMACIST', 'ADMIN', 
                     dispensedBy: req.user.id,
                     totalAmount,
                     items: {
-                        create: items.map(item => ({
+                        create: itemsWithPrices.map(item => ({
                             medicineId: item.medicineId,
                             quantity: item.quantity,
-                            unitPrice: 0, // Will be updated or can be fetched
-                            totalPrice: 0 // Will be updated
+                            unitPrice: item.unitPrice,
+                            totalPrice: item.totalPrice
                         }))
                     }
                 },
@@ -175,9 +178,6 @@ router.post('/dispense', authMiddleware, roleMiddleware(['PHARMACIST', 'ADMIN', 
                     items: true
                 }
             });
-
-            // Update unit prices in items (simplified for now)
-            // In a real app, you'd fetch current prices during the transaction
 
             return dispense;
         });

@@ -285,6 +285,14 @@ router.put('/:id', authMiddleware, async (req, res, next) => {
       }
     });
 
+    // Award Zen Points on completion
+    if (status === 'COMPLETED' && existing.status !== 'COMPLETED') {
+      await prisma.patient.update({
+        where: { id: appointment.patientId },
+        data: { zenPoints: { increment: 100 } }
+      });
+    }
+
     res.json(appointment);
   } catch (err) {
     next(err);

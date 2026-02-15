@@ -15,7 +15,11 @@ import TherapistDashboard from "./pages/TherapistDashboard";
 import ConsultationRoom from "./pages/ConsultationRoom";
 import TherapistPatients from "./pages/TherapistPatients";
 import PatientScreen from "./pages/PatientScreen";
-import PatientOnboarding from "./pages/PatientOnboarding";
+import { lazy, Suspense } from "react";
+const PatientOnboarding = lazy(() => import("./pages/PatientOnboarding"));
+const PatientWellness = lazy(() => import("./pages/PatientWellness"));
+const ExerciseLibrary = lazy(() => import("./pages/ExerciseLibrary"));
+const Chat = lazy(() => import("./pages/Chat"));
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 import CreateUser from "./pages/CreateUser";
@@ -173,6 +177,22 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/wellness"
+        element={
+          <ProtectedRoute allowedRoles={["PATIENT"]}>
+            <PatientWellness />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/exercise-library"
+        element={
+          <ProtectedRoute allowedRoles={["PATIENT"]}>
+            <ExerciseLibrary />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/patient/onboarding"
         element={
           <ProtectedRoute allowedRoles={["PATIENT"]}>
@@ -229,7 +249,14 @@ function AppRoutes() {
         }
       />
 
-      {/* Catch-All */}
+      <Route
+        path="/chat"
+        element={
+          <ProtectedRoute allowedRoles={["PATIENT", "DOCTOR", "ADMIN", "ADMIN_DOCTOR"]}>
+            <Chat />
+          </ProtectedRoute>
+        }
+      />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -244,7 +271,13 @@ const App = () => (
             <TooltipProvider>
               <Toaster />
               <Sonner />
-              <AppRoutes />
+              <Suspense fallback={
+                <div className="min-h-screen flex items-center justify-center bg-background">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              }>
+                <AppRoutes />
+              </Suspense>
             </TooltipProvider>
           </NotificationProvider>
         </WebSocketProvider>

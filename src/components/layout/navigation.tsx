@@ -12,11 +12,13 @@ import {
   CalendarDays,
   Package,
   ShoppingCart,
-  History
+  History,
+  MessageSquare
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth, AppRole } from "@/hooks/useAuth";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 // Role-based navigation items
 const getRoleNavItems = (role: AppRole | null) => {
@@ -29,6 +31,7 @@ const getRoleNavItems = (role: AppRole | null) => {
         { path: "/assign-patient", label: "Assign Patient", icon: User },
         { path: "/prescriptions", label: "Prescriptions", icon: FilePlus2 },
         { path: "/doctor-gamification", label: "Doctor Gamification", icon: Activity },
+        { path: "/chat", label: "Chat", icon: MessageSquare },
       ];
     case "ADMIN_DOCTOR":
       return [
@@ -39,6 +42,7 @@ const getRoleNavItems = (role: AppRole | null) => {
         { path: "/assign-patient", label: "Assign Patient", icon: User },
         { path: "/prescriptions", label: "Prescriptions", icon: FilePlus2 },
         { path: "/doctor-gamification", label: "Doctor Gamification", icon: Activity },
+        { path: "/chat", label: "Chat", icon: MessageSquare },
       ];
     case "DOCTOR":
       return [
@@ -46,17 +50,21 @@ const getRoleNavItems = (role: AppRole | null) => {
         { path: "/appointments", label: "Appointments", icon: CalendarDays },
         { path: "/prescriptions", label: "Prescriptions", icon: FilePlus2 },
         { path: "/doctor-gamification", label: "Doctor Gamification", icon: Activity },
+        { path: "/chat", label: "Chat", icon: MessageSquare },
       ];
     case "THERAPIST":
       return [
         { path: "/therapist", label: "Today's Sittings", icon: Heart },
         { path: "/appointments", label: "Appointments", icon: CalendarDays },
         { path: "/prescriptions", label: "Prescriptions", icon: FilePlus2 },
+        { path: "/chat", label: "Chat", icon: MessageSquare },
       ];
     case "PATIENT":
       return [
         { path: "/patient", label: "My Journey", icon: Activity },
+        { path: "/wellness", label: "Wellness", icon: Heart },
         { path: "/appointments", label: "Appointments", icon: CalendarDays },
+        { path: "/chat", label: "Chat", icon: MessageSquare },
       ];
     case "PHARMACIST":
       return [
@@ -123,6 +131,7 @@ export function Navigation() {
         </div>
 
         <div className="flex items-center gap-3">
+          <LanguageSwitcher />
           <NotificationBell />
           {profile?.full_name && (
             <span className="text-sm text-muted-foreground">
@@ -148,16 +157,19 @@ export function Navigation() {
           <span className="font-semibold text-foreground text-sm">IWIS</span>
         </Link>
 
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="p-2 rounded-lg hover:bg-secondary transition-colors"
-        >
-          {mobileOpen ? (
-            <X className="h-5 w-5 text-foreground" />
-          ) : (
-            <Menu className="h-5 w-5 text-foreground" />
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher />
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="p-2 rounded-lg hover:bg-secondary transition-colors"
+          >
+            {mobileOpen ? (
+              <X className="h-5 w-5 text-foreground" />
+            ) : (
+              <Menu className="h-5 w-5 text-foreground" />
+            )}
+          </button>
+        </div>
       </nav>
 
       {/* Mobile Menu Overlay */}

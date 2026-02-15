@@ -8,7 +8,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { user, role, loading } = useAuth();
+  const { user, role, profile, loading } = useAuth();
 
   if (loading) {
     return (
@@ -26,9 +26,16 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   if (!role || !allowedRoles.includes(role)) {
-    // Redirect to appropriate dashboard based on role
     const redirectPath = getRoleRedirectPath(role);
     return <Navigate to={redirectPath} replace />;
+  }
+
+  // Mandatory onboarding for patients
+  if (role === "PATIENT" && profile?.patient && !profile.patient.onboardingCompleted) {
+    const isAlreadyOnOnboarding = window.location.pathname === "/patient/onboarding";
+    if (!isAlreadyOnOnboarding) {
+      return <Navigate to="/patient/onboarding" replace />;
+    }
   }
 
   return <>{children}</>;

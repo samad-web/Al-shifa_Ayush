@@ -8,6 +8,7 @@ interface ProgressRingProps {
   className?: string;
   showLabel?: boolean;
   label?: string;
+  children?: React.ReactNode;
 }
 
 const variantColors = {
@@ -24,6 +25,7 @@ export function ProgressRing({
   className,
   showLabel = true,
   label,
+  children,
 }: ProgressRingProps) {
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
@@ -56,13 +58,19 @@ export function ProgressRing({
           }}
         />
       </svg>
-      {showLabel && (
+      {(showLabel || children) && (
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-semibold text-foreground">
-            {Math.round(progress)}%
-          </span>
-          {label && (
-            <span className="text-xs text-muted-foreground mt-0.5">{label}</span>
+          {children ? (
+            children
+          ) : (
+            <>
+              <span className="text-2xl font-semibold text-foreground">
+                {Math.round(progress)}%
+              </span>
+              {label && (
+                <span className="text-xs text-muted-foreground mt-0.5">{label}</span>
+              )}
+            </>
           )}
         </div>
       )}

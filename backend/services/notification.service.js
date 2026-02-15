@@ -151,6 +151,34 @@ class NotificationService {
     }
 
     /**
+     * Send low stock alert to admins and pharmacists
+     */
+    async sendLowStockAlert(medicineName, currentStock) {
+        try {
+            // Find all admins and pharmacists
+            const staff = await prisma.user.findMany({
+                where: {
+                    role: { in: ['ADMIN', 'PHARMACIST', 'ADMIN_DOCTOR'] },
+                    deletedAt: null
+                }
+            });
+
+            for (const user of staff) {
+                await this.create({
+                    userId: user.id,
+                    type: 'SYSTEM_ALERT',
+                    title: 'Low Stock Alert',
+                    message: `Inventory Alert: ${medicineName} is running low on stock. Current quantity: ${currentStock}.`,
+                    data: { medicineName, currentStock },
+                    sendEmail: true
+                });
+            }
+        } catch (error) {
+            console.error('[NotificationService] Error sending low stock alert:', error);
+        }
+    }
+
+    /**
      * Mark notification as read
      */
     async markAsRead(notificationId) {
