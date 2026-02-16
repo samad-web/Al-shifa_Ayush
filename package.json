@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && cd backend && npx prisma generate",
+    "build": "NODE_OPTIONS='--max-old-space-size=4096' npx vite build && cd backend && npx prisma generate",
     "postinstall": "cd backend && npm install",
     "start": "node backend/index.js",
     "lint": "eslint .",
