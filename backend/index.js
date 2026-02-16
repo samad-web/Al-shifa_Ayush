@@ -4,7 +4,12 @@ dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { createServer } from 'http';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import authRoutes from './routes/auth.js';
 // ... other imports
 import userRoutes from './routes/user.js';
@@ -40,7 +45,9 @@ app.use(cors({
     'http://127.0.0.1:5173',
     'http://127.0.0.1:8080',
     'http://127.0.0.1:8081',
-    process.env.FRONTEND_URL
+    process.env.FRONTEND_URL,
+    // Support Render internal networking or same-origin requests
+    '*.onrender.com'
   ].filter(Boolean),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -72,11 +79,30 @@ app.use('/api/triage', triageRoutes);
 app.use('/api/wellness', wellnessRoutes);
 app.use('/api/chat', chatRoutes);
 
+// Serve static files from the React app
+const distPath = path.join(__dirname, '../dist');
+app.use(express.static(distPath));
+
+// The "catchall" handler: for any request that doesn't
+// match one above, send back React's index.html file.
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'API route not found' });
+  }
+  res.sendFile(path.join(distPath, 'index.html'));
+});
+
 // Global error handler
 app.use((err, req, res, next) => {
   console.error(err);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal Server Error',
+  const status = err.status || 500;
+  const message = process.env.NODE_ENV === 'production'
+    ? 'Internal Server Error'
+    : err.message || 'Internal Server Error';
+
+  res.status(status).json({
+    error: message,
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
   });
 });
 
