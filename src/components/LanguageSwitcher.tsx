@@ -11,8 +11,6 @@ import { useEffect } from "react";
 
 const languages = [
     { code: 'en', name: 'English (English)', dir: 'ltr' },
-    { code: 'hi', name: 'Hindi (हिन्दी)', dir: 'ltr' },
-    { code: 'ar', name: 'Arabic (العربية)', dir: 'rtl' },
     { code: 'ta', name: 'Tamil (தமிழ்)', dir: 'ltr' }
 ];
 

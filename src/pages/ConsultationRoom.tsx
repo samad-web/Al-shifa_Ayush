@@ -17,6 +17,7 @@ import {
     ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
+import { ChatWrapper } from "@/components/chat/ChatWrapper";
 
 export default function ConsultationRoom() {
     const { appointmentId } = useParams();
@@ -156,13 +157,22 @@ export default function ConsultationRoom() {
                                     </div>
                                 </div>
 
-                                {/* Chat Placeholder */}
-                                <div className="h-48 bg-card border border-border/50 rounded-2xl flex flex-col overflow-hidden">
-                                    <div className="px-4 py-2 border-b border-border/50 bg-muted/50 text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                {/* Chat Section */}
+                                <div className="h-64 bg-card border border-border/50 rounded-2xl flex flex-col overflow-hidden">
+                                    <div className="px-4 py-2 border-b border-border/50 bg-muted/50 text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2 shrink-0">
                                         <MessageSquare className="w-3 h-3" /> Secure Session Chat
                                     </div>
-                                    <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground italic">
-                                        Messaging will be available once the patient joins.
+                                    <div className="flex-1 overflow-hidden">
+                                        {appointment.patient?.userId && appointment.doctor?.userId ? (
+                                            <ChatWrapper
+                                                patientId={appointment.patient.id}
+                                                doctorId={appointment.doctor.id}
+                                            />
+                                        ) : (
+                                            <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground italic h-full">
+                                                Messaging will be available once the participants join.
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>

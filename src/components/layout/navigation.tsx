@@ -72,6 +72,7 @@ const getRoleNavItems = (role: AppRole | null) => {
         { path: "/pharmacy/inventory", label: "Inventory", icon: Package },
         { path: "/pharmacy/dispense", label: "Dispense", icon: ShoppingCart },
         { path: "/pharmacy/history", label: "History", icon: History },
+        { path: "/chat", label: "Chat", icon: MessageSquare },
       ];
     default:
       return [];

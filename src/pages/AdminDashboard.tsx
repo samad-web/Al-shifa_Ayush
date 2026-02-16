@@ -9,6 +9,7 @@ import { AppointmentModal } from "@/components/appointment-modal";
 import { AppointmentList } from "@/components/appointment-list";
 import { Calendar, Users, UserPlus, Activity } from "lucide-react";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
@@ -18,16 +19,22 @@ export default function AdminDashboard() {
   const [showModal, setShowModal] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [loadingAppointments, setLoadingAppointments] = useState(false);
+  const [loadingCounts, setLoadingCounts] = useState(false);
 
   useEffect(() => {
     async function fetchCounts() {
+      setLoadingCounts(true);
       try {
         const [doctors, patients] = await Promise.all([
           fetch(`${API_BASE_URL}/api/user/list-doctors`, { headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` } }).then(r => r.json()),
           fetch(`${API_BASE_URL}/api/user/list-patients`, { headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` } }).then(r => r.json()),
         ]);
         setCounts({ doctors: doctors.length, patients: patients.length });
-      } catch { }
+      } catch (error) {
+        console.error("Failed to fetch counts:", error);
+      } finally {
+        setLoadingCounts(false);
+      }
     }
     fetchCounts();
     fetchAppointments();
@@ -100,7 +107,11 @@ export default function AdminDashboard() {
               <div className="p-3 rounded-lg bg-primary/10">
                 <Users className="w-6 h-6 text-primary" />
               </div>
-              <div className="text-3xl font-bold text-foreground">{counts.doctors}</div>
+              {loadingCounts ? (
+                <Skeleton className="h-9 w-12" />
+              ) : (
+                <div className="text-3xl font-bold text-foreground">{counts.doctors}</div>
+              )}
             </div>
           </Panel>
 
@@ -109,7 +120,11 @@ export default function AdminDashboard() {
               <div className="p-3 rounded-lg bg-wellness/10">
                 <Users className="w-6 h-6 text-wellness" />
               </div>
-              <div className="text-3xl font-bold text-foreground">{counts.patients}</div>
+              {loadingCounts ? (
+                <Skeleton className="h-9 w-12" />
+              ) : (
+                <div className="text-3xl font-bold text-foreground">{counts.patients}</div>
+              )}
             </div>
           </Panel>
 
@@ -118,9 +133,13 @@ export default function AdminDashboard() {
               <div className="p-3 rounded-lg bg-secondary">
                 <Calendar className="w-6 h-6 text-foreground" />
               </div>
-              <div className="text-3xl font-bold text-foreground">
-                {appointments.filter(a => a.status === "SCHEDULED").length}
-              </div>
+              {loadingAppointments || loadingCounts ? (
+                <Skeleton className="h-9 w-12" />
+              ) : (
+                <div className="text-3xl font-bold text-foreground">
+                  {appointments.filter(a => a.status === "SCHEDULED").length}
+                </div>
+              )}
             </div>
           </Panel>
         </div>
@@ -173,8 +192,10 @@ export default function AdminDashboard() {
             </div>
 
             {loadingAppointments ? (
-              <div className="text-center py-12 text-muted-foreground">
-                Loading appointments...
+              <div className="space-y-3">
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
               </div>
             ) : (
               <AppointmentList

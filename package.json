@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "NODE_OPTIONS='--max-old-space-size=4096' npx vite build && cd backend && npx prisma generate",
+    "build": "cross-env NODE_OPTIONS=\"--max-old-space-size=4096\" vite build && cd backend && npx prisma generate",
     "postinstall": "cd backend && npm install",
     "start": "node backend/index.js",
     "lint": "eslint .",
@@ -81,6 +81,7 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react-swc": "^3.11.0",
     "autoprefixer": "^10.4.21",
+    "cross-env": "^10.1.0",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",

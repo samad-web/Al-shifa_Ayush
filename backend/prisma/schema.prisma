@@ -8,23 +8,23 @@ datasource db {
 }
 
 model User {
-  id        String     @id @default(uuid())
-  email     String     @unique
-  password  String
-  role      Role
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  deletedAt DateTime?
-  doctor    Doctor?
-  patient   Patient?
-  therapist Therapist?
-  pharmacist Pharmacist?
-  notifications Notification[]
+  id                     String                  @id @default(uuid())
+  email                  String                  @unique
+  password               String
+  role                   Role
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  deletedAt              DateTime?
+  bulkOperations         BulkOperation[]
+  doctor                 Doctor?
+  uploadedDocuments      Document[]
+  sentMessages           Message[]
+  notifications          Notification[]
   notificationPreference NotificationPreference?
-  uploadedDocuments Document[]
-  bulkOperations BulkOperation[]
-  pharmacyDispenses PharmacyDispense[]
-  sentMessages                Message[]
+  patient                Patient?
+  pharmacist             Pharmacist?
+  pharmacyDispenses      PharmacyDispense[]
+  therapist              Therapist?
 }
 
 model Doctor {
@@ -39,95 +39,96 @@ model Doctor {
   specialization     String?
   yearsExperience    Int?
   appointments       Appointment[]
-  user               User                @relation(fields: [userId], references: [id])
-  prescriptions      Prescription[]
-  journeys           Journey[]
-  videoPrescriptions VideoPrescription[]
   conversations      Conversation[]
+  user               User                @relation(fields: [userId], references: [id])
+  journeys           Journey[]
+  prescriptions      Prescription[]
+  videoPrescriptions VideoPrescription[]
 }
 
 model Therapist {
-  id              String         @id @default(uuid())
-  userId          String         @unique
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  clinic          String?
-  fullName        String?
-  profilePhoto    String?
-  qualification   String?
-  specialization  String?
-  yearsExperience Int?
-  appointments    Appointment[]
-  availability    Availability[]
-  prescriptions   Prescription[]
-  user            User           @relation(fields: [userId], references: [id])
-  journeys        Journey[]
+  id                 String              @id @default(uuid())
+  userId             String              @unique
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  clinic             String?
+  fullName           String?
+  profilePhoto       String?
+  qualification      String?
+  specialization     String?
+  yearsExperience    Int?
+  appointments       Appointment[]
+  availability       Availability[]
+  conversations      Conversation[]
+  journeys           Journey[]
+  prescriptions      Prescription[]
+  user               User                @relation(fields: [userId], references: [id])
   videoPrescriptions VideoPrescription[]
 }
 
 model Pharmacist {
-  id              String         @id @default(uuid())
-  userId          String         @unique
+  id              String   @id @default(uuid())
+  userId          String   @unique
   fullName        String?
   profilePhoto    String?
   qualification   String?
   yearsExperience Int?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  user            User           @relation(fields: [userId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id])
 }
 
 model Patient {
-  id            String         @id @default(uuid())
-  userId        String         @unique
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  age           Int?
-  dob           DateTime?
-  fullName      String?
-  gender        String?
-  patientId     String?        @unique
-  phoneNumber   String?
-  therapyType   String?
-  appointments  Appointment[]
-  user          User           @relation(fields: [userId], references: [id])
-  prescriptions Prescription[]
-  documents     Document[]
-  journeys      Journey[]
-  payments      Payment[]
-  pharmacyDispenses PharmacyDispense[]
-  onboardingCompleted Boolean @default(false)
-  onboardingData      Json?     // Stores mandatory onboarding flow questionnaire data
-  zenPoints           Int       @default(0)
-  invoices            Invoice[]
-  triageSessions      TriageSession[]
-  dailyCheckIns       DailyCheckIn[]
-  videoPrescriptions  VideoPrescription[]
+  id                  String              @id @default(uuid())
+  userId              String              @unique
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  age                 Int?
+  dob                 DateTime?
+  fullName            String?
+  gender              String?
+  patientId           String?             @unique
+  phoneNumber         String?
+  therapyType         String?
+  onboardingCompleted Boolean             @default(false)
+  onboardingData      Json?
+  zenPoints           Int                 @default(0)
+  appointments        Appointment[]
   conversations       Conversation[]
+  dailyCheckIns       DailyCheckIn[]
+  documents           Document[]
+  invoices            Invoice[]
+  journeys            Journey[]
+  user                User                @relation(fields: [userId], references: [id])
+  payments            Payment[]
+  pharmacyDispenses   PharmacyDispense[]
+  prescriptions       Prescription[]
+  triageSessions      TriageSession[]
+  videoPrescriptions  VideoPrescription[]
 }
 
 model DailyCheckIn {
-  id          String   @id @default(uuid())
-  patientId   String
-  painLevel   Int
-  sleepHours  Float
-  mood        String   // HAPPY, NEUTRAL, SAD, etc.
-  notes       String?
-  createdAt   DateTime @default(now())
-  patient     Patient  @relation(fields: [patientId], references: [id])
+  id         String   @id @default(uuid())
+  patientId  String
+  painLevel  Int
+  sleepHours Float
+  mood       String
+  notes      String?
+  createdAt  DateTime @default(now())
+  patient    Patient  @relation(fields: [patientId], references: [id])
 
   @@index([patientId, createdAt])
 }
 
 model ExerciseVideo {
-  id          String   @id @default(uuid())
-  title       String
-  description String?
-  videoUrl    String
-  thumbnail   String?
-  category    String   // YOGA, PHYSIO, MEDITATION
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String              @id @default(uuid())
+  title         String
+  description   String?
+  videoUrl      String
+  thumbnail     String?
+  category      String
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
   prescriptions VideoPrescription[]
 }
 
@@ -139,32 +140,38 @@ model VideoPrescription {
   videoId     String
   notes       String?
   createdAt   DateTime      @default(now())
-  patient     Patient       @relation(fields: [patientId], references: [id])
-  video       ExerciseVideo @relation(fields: [videoId], references: [id])
   doctor      Doctor?       @relation(fields: [doctorId], references: [id])
+  patient     Patient       @relation(fields: [patientId], references: [id])
   therapist   Therapist?    @relation(fields: [therapistId], references: [id])
+  video       ExerciseVideo @relation(fields: [videoId], references: [id])
 
   @@index([patientId])
 }
 
 model Appointment {
-  id          String     @id @default(uuid())
-  patientId   String
-  doctorId    String
-  therapistId String?
-  date        DateTime
-  status      String
-  notes       String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  doctor           Doctor     @relation(fields: [doctorId], references: [id])
-  patient          Patient    @relation(fields: [patientId], references: [id])
-  therapist        Therapist? @relation(fields: [therapistId], references: [id])
-  consultationMode String     @default("OFFLINE") // ONLINE or OFFLINE
+  id               String         @id @default(uuid())
+  patientId        String
+  doctorId         String
+  therapistId      String?
+  date             DateTime
+  status           String
+  notes            String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  consultationMode String         @default("OFFLINE")
   meetingLink      String?
   sessionNotes     String?
-  triageSessionId  String?    @unique
+  triageSessionId  String?        @unique
+  doctor           Doctor         @relation(fields: [doctorId], references: [id])
+  patient          Patient        @relation(fields: [patientId], references: [id])
+  therapist        Therapist?     @relation(fields: [therapistId], references: [id])
   triageSession    TriageSession? @relation(fields: [triageSessionId], references: [id])
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([therapistId])
+  @@index([status])
+  @@index([date])
 }
 
 model Prescription {
@@ -183,73 +190,69 @@ model Prescription {
   doctor         Doctor?    @relation(fields: [doctorId], references: [id])
   patient        Patient    @relation(fields: [patientId], references: [id])
   therapist      Therapist? @relation(fields: [therapistId], references: [id])
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([therapistId])
+  @@index([createdAt])
 }
 
 model Availability {
   id          String    @id @default(uuid())
   therapistId String
-  dayOfWeek   Int       // 0-6 (Sunday to Saturday)
-  startTime   String    // HH:mm
-  endTime     String    // HH:mm
+  dayOfWeek   Int
+  startTime   String
+  endTime     String
   isApproved  Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   therapist   Therapist @relation(fields: [therapistId], references: [id])
 }
 
-enum Role {
-  ADMIN_DOCTOR
-  DOCTOR
-  THERAPIST
-  PATIENT
-  ADMIN
-  PHARMACIST
-}
-
 model Notification {
   id        String   @id @default(uuid())
   userId    String
-  type      String   // APPOINTMENT_REMINDER, SYSTEM_ALERT, PRESCRIPTION_UPDATE, etc.
+  type      String
   title     String
   message   String
   isRead    Boolean  @default(false)
-  data      Json?    // Additional context (appointmentId, etc.)
+  data      Json?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
-  
+
   @@index([userId, isRead])
   @@index([createdAt])
 }
 
 model NotificationPreference {
-  id                    String  @id @default(uuid())
-  userId                String  @unique
-  emailEnabled          Boolean @default(true)
-  smsEnabled            Boolean @default(false)
-  pushEnabled           Boolean @default(true)
-  appointmentReminders  Boolean @default(true)
-  systemAlerts          Boolean @default(true)
-  prescriptionUpdates   Boolean @default(true)
-  user                  User    @relation(fields: [userId], references: [id])
+  id                   String  @id @default(uuid())
+  userId               String  @unique
+  emailEnabled         Boolean @default(true)
+  smsEnabled           Boolean @default(false)
+  pushEnabled          Boolean @default(true)
+  appointmentReminders Boolean @default(true)
+  systemAlerts         Boolean @default(true)
+  prescriptionUpdates  Boolean @default(true)
+  user                 User    @relation(fields: [userId], references: [id])
 }
 
 model Document {
-  id          String   @id @default(uuid())
-  patientId   String
-  uploadedBy  String
-  fileName    String
-  fileUrl     String
-  fileType    String   // PDF, JPEG, PNG, etc.
-  fileSize    Int      // in bytes
-  category    String   // MEDICAL_RECORD, LAB_RESULT, PRESCRIPTION, IMAGING, etc.
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  patient     Patient  @relation(fields: [patientId], references: [id])
-  uploader    User     @relation(fields: [uploadedBy], references: [id])
+  id              String         @id @default(uuid())
+  patientId       String
+  uploadedBy      String
+  fileName        String
+  fileUrl         String
+  fileType        String
+  fileSize        Int
+  category        String
+  description     String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
   triageSessionId String?
-  triageSession TriageSession? @relation(fields: [triageSessionId], references: [id])
-  
+  patient         Patient        @relation(fields: [patientId], references: [id])
+  triageSession   TriageSession? @relation(fields: [triageSessionId], references: [id])
+  uploader        User           @relation(fields: [uploadedBy], references: [id])
+
   @@index([patientId])
   @@index([category])
   @@index([triageSessionId])
@@ -262,52 +265,52 @@ model Journey {
   therapistId       String?
   startDate         DateTime
   endDate           DateTime?
-  status            String          // ACTIVE, COMPLETED, SUSPENDED, CANCELLED
+  status            String
   totalSessions     Int
   completedSessions Int             @default(0)
   progressNotes     String?
   treatmentGoals    String?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
-  patient           Patient         @relation(fields: [patientId], references: [id])
   doctor            Doctor          @relation(fields: [doctorId], references: [id])
+  patient           Patient         @relation(fields: [patientId], references: [id])
   therapist         Therapist?      @relation(fields: [therapistId], references: [id])
   medications       MedicationLog[]
-  
+
   @@index([patientId, status])
   @@index([doctorId])
 }
 
 model MedicationLog {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   journeyId      String
   date           DateTime
   medicationName String
   dosage         String
-  taken          Boolean  @default(false)
+  taken          Boolean   @default(false)
   takenAt        DateTime?
   notes          String?
-  createdAt      DateTime @default(now())
-  journey        Journey  @relation(fields: [journeyId], references: [id])
-  
+  createdAt      DateTime  @default(now())
+  journey        Journey   @relation(fields: [journeyId], references: [id])
+
   @@index([journeyId, date])
 }
 
 model BulkOperation {
   id               String    @id @default(uuid())
-  type             String    // PATIENT_IMPORT, APPOINTMENT_BULK, PRESCRIPTION_BATCH
+  type             String
   initiatedBy      String
-  status           String    // PENDING, IN_PROGRESS, COMPLETED, FAILED, ROLLED_BACK
+  status           String
   totalRecords     Int
   processedRecords Int       @default(0)
   failedRecords    Int       @default(0)
-  errorLog         Json?     // Array of error objects
-  fileUrl          String?   // Original uploaded file
-  resultFileUrl    String?   // Result/error report file
+  errorLog         Json?
+  fileUrl          String?
+  resultFileUrl    String?
   createdAt        DateTime  @default(now())
   completedAt      DateTime?
   user             User      @relation(fields: [initiatedBy], references: [id])
-  
+
   @@index([initiatedBy])
   @@index([status])
 }
@@ -317,17 +320,17 @@ model Payment {
   patientId     String
   amount        Float
   currency      String   @default("INR")
-  status        String   // PENDING, COMPLETED, FAILED, REFUNDED
-  paymentMethod String?  // CARD, UPI, NET_BANKING, CASH
+  status        String
+  paymentMethod String?
   transactionId String?  @unique
   description   String?
   appointmentId String?
   invoiceUrl    String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  patient       Patient  @relation(fields: [patientId], references: [id])
-  invoice       Invoice? @relation(fields: [invoiceId], references: [id])
   invoiceId     String?
+  invoice       Invoice? @relation(fields: [invoiceId], references: [id])
+  patient       Patient  @relation(fields: [patientId], references: [id])
 
   @@index([patientId])
   @@index([status])
@@ -335,19 +338,19 @@ model Payment {
 }
 
 model Medicine {
-  id           String             @id @default(uuid())
-  name         String
-  brand        String?
-  category     String?            // Tablet, Syrup, Injection, etc.
-  manufacturer String?
-  composition  String?
-  description  String?
-  price        Float
-  stocks       MedicineStock[]
+  id            String          @id @default(uuid())
+  name          String
+  brand         String?
+  category      String?
+  manufacturer  String?
+  composition   String?
+  description   String?
+  price         Float
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
   dispenseItems DispenseItem[]
-  invoiceItems InvoiceItem[]
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  invoiceItems  InvoiceItem[]
+  stocks        MedicineStock[]
 
   @@index([name])
 }
@@ -359,7 +362,7 @@ model MedicineStock {
   expiryDate  DateTime
   quantity    Int
   minStock    Int      @default(10)
-  location    String?  // Rack/Shelf location
+  location    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   medicine    Medicine @relation(fields: [medicineId], references: [id])
@@ -372,14 +375,14 @@ model PharmacyDispense {
   id             String         @id @default(uuid())
   patientId      String
   prescriptionId String?
-  dispensedBy    String         // Staff ID (User ID)
+  dispensedBy    String
   totalAmount    Float
-  status         String         @default("COMPLETED") // COMPLETED, CANCELLED
+  status         String         @default("COMPLETED")
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
-  patient        Patient        @relation(fields: [patientId], references: [id])
-  dispenser      User           @relation(fields: [dispensedBy], references: [id])
   items          DispenseItem[]
+  dispenser      User           @relation(fields: [dispensedBy], references: [id])
+  patient        Patient        @relation(fields: [patientId], references: [id])
 
   @@index([patientId])
   @@index([createdAt])
@@ -403,7 +406,7 @@ model Invoice {
   taxAmount   Float?        @default(0)
   discount    Float?        @default(0)
   netAmount   Float
-  status      String        @default("UNPAID") // PAID, UNPAID, PARTIAL
+  status      String        @default("UNPAID")
   dueDate     DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
@@ -416,45 +419,50 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   invoiceId   String
   description String
   quantity    Int
   unitPrice   Float
   totalPrice  Float
   medicineId  String?
-  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+  invoice     Invoice   @relation(fields: [invoiceId], references: [id])
   medicine    Medicine? @relation(fields: [medicineId], references: [id])
 }
 
 model TriageSession {
   id                 String       @id @default(uuid())
   patientId          String
-  responses          Json         // Stores all questionnaire answers: painArea, severity, symptoms, etc.
-  severity           String       // LOW, MEDIUM, HIGH, EMERGENCY
+  responses          Json
+  severity           String
   suggestedSpecialty String?
   isEscalated        Boolean      @default(false)
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
-  patient            Patient      @relation(fields: [patientId], references: [id])
   appointment        Appointment?
   documents          Document[]
+  patient            Patient      @relation(fields: [patientId], references: [id])
 
   @@index([patientId])
 }
 
 model Conversation {
-  id        String    @id @default(uuid())
-  patientId String
-  doctorId  String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  
-  patient   Patient   @relation(fields: [patientId], references: [id])
-  doctor    Doctor    @relation(fields: [doctorId], references: [id])
-  messages  Message[]
+  id          String     @id @default(uuid())
+  patientId   String
+  doctorId    String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  therapistId String?
+  doctor      Doctor?    @relation(fields: [doctorId], references: [id])
+  patient     Patient    @relation(fields: [patientId], references: [id])
+  therapist   Therapist? @relation(fields: [therapistId], references: [id])
+  messages    Message[]
 
   @@unique([patientId, doctorId])
+  @@unique([patientId, therapistId])
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([therapistId])
 }
 
 model Message {
@@ -464,10 +472,18 @@ model Message {
   content        String
   isRead         Boolean      @default(false)
   createdAt      DateTime     @default(now())
-  
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   sender         User         @relation(fields: [senderId], references: [id])
 
   @@index([conversationId])
   @@index([createdAt])
+}
+
+enum Role {
+  ADMIN_DOCTOR
+  DOCTOR
+  THERAPIST
+  PATIENT
+  ADMIN
+  PHARMACIST
 }

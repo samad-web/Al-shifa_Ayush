@@ -3,10 +3,12 @@ import { PageHeader } from "@/components/layout/page-header";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { StatCard } from "@/components/ui/stat-card";
 import { Panel } from "@/components/ui/panel";
+import { Button } from "@/components/ui/button";
 import { PatientCard } from "@/components/ui/patient-card";
+import { MultiplePrescriptionForm } from "@/components/prescription/MultiplePrescriptionForm";
 import { EncouragementText } from "@/components/ui/encouragement-text";
 import { useAuth } from "@/hooks/useAuth";
-import { Users, AlertTriangle, Sparkles, CheckCircle2 } from "lucide-react";
+import { Users, AlertTriangle, Sparkles, CheckCircle2, Pill } from "lucide-react";
 
 import { useEffect, useState } from "react";
 const initialStats = {
@@ -37,6 +39,7 @@ export default function DoctorDashboard() {
   const { profile } = useAuth();
   const [stats, setStats] = useState(initialStats);
   const [loading, setLoading] = useState(true);
+  const [selectedPatient, setSelectedPatient] = useState<{ id: string, name: string } | null>(null);
 
   useEffect(() => {
     fetchStats();
@@ -144,6 +147,25 @@ export default function DoctorDashboard() {
           />
         </div>
 
+        {/* Prescription Form Overlay/Modal-like Panel */}
+        {selectedPatient && (
+          <Panel
+            title={`Prescribe Medicine`}
+            subtitle={`For ${selectedPatient.name}`}
+            className="border-primary/30 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300"
+          >
+            <MultiplePrescriptionForm
+              patientId={selectedPatient.id}
+              patientName={selectedPatient.name}
+              onSuccess={() => {
+                setSelectedPatient(null);
+                fetchStats(); // Refresh stats if it affects dashboards
+              }}
+              onCancel={() => setSelectedPatient(null)}
+            />
+          </Panel>
+        )}
+
         {/* Panels - No alerts, no comparison with other doctors */}
         <div className="grid md:grid-cols-2 gap-6">
           <Panel
@@ -159,7 +181,16 @@ export default function DoctorDashboard() {
                     name={patient.name}
                     reason={patient.reason}
                     status="needs-attention"
-                  />
+                  >
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-[10px] font-bold uppercase tracking-wider gap-2 w-full"
+                      onClick={() => setSelectedPatient({ id: patient.id, name: patient.name })}
+                    >
+                      <Pill className="w-3 h-3" /> Prescribe
+                    </Button>
+                  </PatientCard>
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">
@@ -182,7 +213,16 @@ export default function DoctorDashboard() {
                     name={patient.name}
                     sittings={patient.sittings}
                     status="on-track"
-                  />
+                  >
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-[10px] font-bold uppercase tracking-wider gap-2 w-full"
+                      onClick={() => setSelectedPatient({ id: patient.id, name: patient.name })}
+                    >
+                      <Pill className="w-3 h-3" /> Prescribe
+                    </Button>
+                  </PatientCard>
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">

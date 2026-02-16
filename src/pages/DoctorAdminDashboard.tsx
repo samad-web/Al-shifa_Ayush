@@ -3,7 +3,9 @@ import { AppLayout } from "@/components/layout/app-layout";
 import { PageHeader } from "@/components/layout/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Panel } from "@/components/ui/panel";
+import { Button } from "@/components/ui/button";
 import { PatientCard } from "@/components/ui/patient-card";
+import { MultiplePrescriptionForm } from "@/components/prescription/MultiplePrescriptionForm";
 import { DoctorPerformanceBadge, getPerformanceBand } from "@/components/ui/doctor-performance-badge";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -13,6 +15,7 @@ import {
   CheckCircle2,
   Users,
   UserPlus,
+  Pill,
 } from "lucide-react";
 
 import { useEffect, useState } from "react";
@@ -33,6 +36,7 @@ export default function DoctorAdminDashboard() {
   const [dashboardStats, setDashboardStats] = useState(initialStats);
   const [doctors, setDoctors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPatient, setSelectedPatient] = useState<{ id: string, name: string } | null>(null);
 
   useEffect(() => {
     fetchStats();
@@ -109,6 +113,25 @@ export default function DoctorAdminDashboard() {
           />
         </div>
 
+        {/* Prescription Form Overlay/Modal-like Panel */}
+        {selectedPatient && (
+          <Panel
+            title={`Prescribe Medicine`}
+            subtitle={`For ${selectedPatient.name}`}
+            className="border-primary/30 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300"
+          >
+            <MultiplePrescriptionForm
+              patientId={selectedPatient.id}
+              patientName={selectedPatient.name}
+              onSuccess={() => {
+                setSelectedPatient(null);
+                fetchStats();
+              }}
+              onCancel={() => setSelectedPatient(null)}
+            />
+          </Panel>
+        )}
+
         {/* Main Content Grid */}
         <div className="grid lg:grid-cols-2 gap-6">
           {/* At-Risk Journeys (based on Journey.status = AT_RISK) */}
@@ -125,7 +148,16 @@ export default function DoctorAdminDashboard() {
                     name={journey.patientName}
                     reason={journey.reason}
                     status="at-risk"
-                  />
+                  >
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-[10px] font-bold uppercase tracking-wider gap-2 w-full"
+                      onClick={() => setSelectedPatient({ id: journey.patientId, name: journey.patientName })}
+                    >
+                      <Pill className="w-3 h-3" /> Prescribe
+                    </Button>
+                  </PatientCard>
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-8">
@@ -149,7 +181,16 @@ export default function DoctorAdminDashboard() {
                     name={journey.patientName}
                     sittings={journey.sittings}
                     status="on-track"
-                  />
+                  >
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-[10px] font-bold uppercase tracking-wider gap-2 w-full"
+                      onClick={() => setSelectedPatient({ id: journey.patientId, name: journey.patientName })}
+                    >
+                      <Pill className="w-3 h-3" /> Prescribe
+                    </Button>
+                  </PatientCard>
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-8">

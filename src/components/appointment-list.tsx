@@ -1,4 +1,4 @@
-import { Calendar, Clock, User, Edit2, XCircle, CheckCircle2, Video } from "lucide-react";
+import { Calendar, Clock, User, Edit2, XCircle, CheckCircle2, Video, MessageSquare } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ interface Appointment {
     notes?: string;
     doctor?: {
         id: string;
+        userId: string;
         fullName?: string;
         user: {
             email: string;
@@ -19,6 +20,7 @@ interface Appointment {
     };
     therapist?: {
         id: string;
+        userId: string;
         fullName?: string;
         user: {
             email: string;
@@ -26,6 +28,7 @@ interface Appointment {
     };
     patient?: {
         id: string;
+        userId: string;
         fullName?: string;
         user: {
             email: string;
@@ -268,6 +271,22 @@ export function AppointmentList({
                                                 {role === "THERAPIST" ? "Resume Session" : "Join Video Call"}
                                             </Button>
                                         )}
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => {
+                                                const partnerId = role === 'PATIENT'
+                                                    ? (appointment.doctor?.userId || appointment.therapist?.userId)
+                                                    : appointment.patient?.userId;
+                                                if (partnerId) {
+                                                    window.location.href = `/chat?partner=${partnerId}`;
+                                                }
+                                            }}
+                                            className="gap-2"
+                                        >
+                                            <MessageSquare className="w-3 h-3" />
+                                            Message
+                                        </Button>
                                     </div>
                                 )}
                             </div>

@@ -69,7 +69,8 @@ export function initializeWebSocket(httpServer) {
                                 email: true,
                                 role: true,
                                 doctor: { select: { fullName: true, profilePhoto: true } },
-                                patient: { select: { fullName: true } }
+                                patient: { select: { fullName: true } },
+                                therapist: { select: { fullName: true, profilePhoto: true } }
                             }
                         }
                     }

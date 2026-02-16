@@ -1,12 +1,9 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth.js';
 import { notificationService } from '../services/notification.service.js';
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
-// Get user notifications with pagination
 router.get('/', authMiddleware, async (req, res, next) => {
     try {
         const userId = req.user.id;
@@ -26,7 +23,6 @@ router.get('/', authMiddleware, async (req, res, next) => {
     }
 });
 
-// Mark notification as read
 router.put('/:id/read', authMiddleware, async (req, res, next) => {
     try {
         const notification = await notificationService.markAsRead(req.params.id);
@@ -36,7 +32,6 @@ router.put('/:id/read', authMiddleware, async (req, res, next) => {
     }
 });
 
-// Mark all notifications as read
 router.put('/read-all', authMiddleware, async (req, res, next) => {
     try {
         await notificationService.markAllAsRead(req.user.id);
@@ -46,7 +41,6 @@ router.put('/read-all', authMiddleware, async (req, res, next) => {
     }
 });
 
-// Get notification preferences
 router.get('/preferences', authMiddleware, async (req, res, next) => {
     try {
         const prefs = await notificationService.getPreferences(req.user.id);
@@ -56,7 +50,6 @@ router.get('/preferences', authMiddleware, async (req, res, next) => {
     }
 });
 
-// Update notification preferences
 router.put('/preferences', authMiddleware, async (req, res, next) => {
     try {
         const prefs = await notificationService.updatePreferences(req.user.id, req.body);
@@ -66,15 +59,9 @@ router.put('/preferences', authMiddleware, async (req, res, next) => {
     }
 });
 
-// Get unread count (for notification bell)
 router.get('/unread-count', authMiddleware, async (req, res, next) => {
     try {
-        const count = await prisma.notification.count({
-            where: {
-                userId: req.user.id,
-                isRead: false,
-            },
-        });
+        const count = await notificationService.getUnreadCount(req.user.id);
         res.json({ count });
     } catch (err) {
         next(err);

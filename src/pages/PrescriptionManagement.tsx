@@ -3,7 +3,7 @@ import { AppLayout } from "@/components/layout/app-layout";
 import { PageHeader } from "@/components/layout/page-header";
 import { Panel } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
-import { PrescriptionModal } from "@/components/prescription-modal";
+import { MultiplePrescriptionForm } from "@/components/prescription/MultiplePrescriptionForm";
 import { PrescriptionList } from "@/components/prescription-list";
 import { useAuth } from "@/hooks/useAuth";
 import { FilePlus2, User } from "lucide-react";
@@ -136,8 +136,23 @@ export default function PrescriptionManagement() {
                     </div>
                 </Panel>
 
+                {/* Add Prescription Form */}
+                {selectedPatient && showModal && (
+                    <Panel title="New Prescription" subtitle={`Create a structured prescription for ${selectedPatientData?.fullName}`}>
+                        <MultiplePrescriptionForm
+                            patientId={selectedPatient}
+                            patientName={selectedPatientData?.fullName || selectedPatientData?.email}
+                            onSuccess={() => {
+                                setShowModal(false);
+                                handlePrescriptionAdded();
+                            }}
+                            onCancel={() => setShowModal(false)}
+                        />
+                    </Panel>
+                )}
+
                 {/* Prescriptions Display */}
-                {selectedPatient && (
+                {selectedPatient && !showModal && (
                     <Panel
                         title={`Prescriptions for ${selectedPatientData?.fullName || "Patient"}`}
                         subtitle="View and download prescription history"
@@ -150,27 +165,6 @@ export default function PrescriptionManagement() {
                             <PrescriptionList prescriptions={prescriptions} />
                         )}
                     </Panel>
-                )}
-
-                {!selectedPatient && (
-                    <div className="text-center py-16 text-muted-foreground">
-                        <FilePlus2 className="w-16 h-16 mx-auto mb-4 opacity-20" />
-                        <p className="text-lg font-medium">Select a patient to view their prescriptions</p>
-                        <p className="text-sm mt-2">
-                            You can upload new prescriptions and view existing ones
-                        </p>
-                    </div>
-                )}
-
-                {/* Add Prescription Modal */}
-                {selectedPatient && (
-                    <PrescriptionModal
-                        isOpen={showModal}
-                        onClose={() => setShowModal(false)}
-                        patientId={selectedPatient}
-                        patientName={selectedPatientData?.fullName || selectedPatientData?.email}
-                        onSuccess={handlePrescriptionAdded}
-                    />
                 )}
             </div>
         </AppLayout>

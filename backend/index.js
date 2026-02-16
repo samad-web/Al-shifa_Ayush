@@ -4,6 +4,8 @@ dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
@@ -35,6 +37,33 @@ app.use((req, res, next) => {
   console.log('Origin:', req.headers.origin);
   next();
 });
+
+// Security Middleware
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false, // Disable CSP for easier frontend integration if needed, or configure specifically
+}));
+
+// Basic Rate Limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests from this IP, please try again after 15 minutes' }
+});
+
+// Stricter Rate Limiting for Auth
+const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // Limit each IP to 10 login attempts per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts, please try again after an hour' }
+});
+
+app.use('/api/', limiter);
+app.use('/api/auth/login', authLimiter);
 
 // Middleware
 app.use(cors({

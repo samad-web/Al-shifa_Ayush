@@ -1,13 +1,12 @@
-import { PrismaClient } from '@prisma/client';
 import express from 'express';
-import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
+import { z } from 'zod';
 import multer from 'multer';
-import { inventoryService } from '../services/inventory.service.js';
+import { PrescriptionService } from '../services/prescription.service.js';
+import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
-// File upload config (local storage)
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'uploads/prescriptions/');
@@ -18,121 +17,65 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Get prescriptions for a patient (role-protected)
+const addPrescriptionSchema = z.object({
+  patientId: z.string(),
+  medicationName: z.string(),
+  dosage: z.string(),
+  frequency: z.string(),
+  duration: z.string(),
+  notes: z.string().optional(),
+});
+
 router.get('/patient/:id', authMiddleware, async (req, res, next) => {
   try {
-    // Permission check: Only assigned doctor/therapist or the patient can view
-    const patientId = req.params.id;
-    const user = req.user;
-    let allowed = false;
-    if (user.role === 'PATIENT' && user.patient?.id === patientId) allowed = true;
-    if (user.role === 'DOCTOR') {
-      // Check if doctor is assigned to patient (via appointments)
-      const appointment = await prisma.appointment.findFirst({ where: { patientId, doctorId: user.doctor.id } });
-      if (appointment) allowed = true;
-    }
-    if (user.role === 'THERAPIST') {
-      const appointment = await prisma.appointment.findFirst({ where: { patientId, therapistId: user.therapist.id } });
-      if (appointment) allowed = true;
-    }
-    if (!allowed && !['ADMIN', 'ADMIN_DOCTOR'].includes(user.role)) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-    const prescriptions = await prisma.prescription.findMany({
-      where: { patientId },
-      include: {
-        doctor: { include: { user: true } },
-        therapist: { include: { user: true } },
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+    const prescriptions = await PrescriptionService.getPatientPrescriptions(req.params.id, req.user);
     res.json(prescriptions);
   } catch (err) {
     next(err);
   }
 });
 
-// Add prescription (doctor/therapist/admin)
-router.post('/add', authMiddleware, roleMiddleware(['DOCTOR', 'THERAPIST', 'ADMIN', 'ADMIN_DOCTOR']), upload.single('file'), async (req, res, next) => {
+const batchPrescriptionSchema = z.object({
+  patientId: z.string(),
+  medicines: z.array(z.object({
+    medicationName: z.string(),
+    dosage: z.string(),
+    frequency: z.string(),
+    duration: z.string(),
+    notes: z.string().optional(),
+    timing: z.string().optional(),
+    vehicle: z.string().optional(),
+    medicineId: z.string().optional(),
+  })),
+});
+
+router.post('/batch-add', authMiddleware, roleMiddleware(['DOCTOR', 'THERAPIST', 'ADMIN', 'ADMIN_DOCTOR']), validate({ body: batchPrescriptionSchema }), async (req, res, next) => {
   try {
-    const { patientId, medicationName, dosage, frequency, duration, notes } = req.body;
-    const fileUrl = req.file ? `/uploads/prescriptions/${req.file.filename}` : null;
-    let doctorId = null, therapistId = null;
-    let allowed = false;
-
-    // ADMIN and ADMIN_DOCTOR can upload for any patient
-    if (['ADMIN', 'ADMIN_DOCTOR'].includes(req.user.role)) {
-      allowed = true;
-      // If admin is also a doctor, link their doctor ID
-      if (req.user.role === 'ADMIN_DOCTOR' && req.user.doctor) {
-        doctorId = req.user.doctor.id;
-      }
-    }
-
-    if (req.user.role === 'DOCTOR') {
-      doctorId = req.user.doctor.id;
-      // Check if doctor is assigned to patient
-      const appointment = await prisma.appointment.findFirst({ where: { patientId, doctorId } });
-      if (appointment) allowed = true;
-    }
-    if (req.user.role === 'THERAPIST') {
-      therapistId = req.user.therapist.id;
-      const appointment = await prisma.appointment.findFirst({ where: { patientId, therapistId } });
-      if (appointment) allowed = true;
-    }
-    if (!allowed) {
-      return res.status(403).json({ error: 'You are not assigned to this patient' });
-    }
-    const prescription = await prisma.prescription.create({
-      data: {
-        patientId,
-        doctorId,
-        therapistId,
-        fileUrl,
-        medicationName,
-        dosage,
-        frequency,
-        duration,
-        notes,
-      }
-    });
-
-    // Integrated Real-time Inventory Check
-    let stockStatus = null;
-    try {
-      stockStatus = await inventoryService.checkStockByMedicineName(medicationName);
-    } catch (stockErr) {
-      console.warn('Real-time stock check failed:', stockErr);
-    }
-
-    res.status(201).json({
-      ...prescription,
-      stockStatus: stockStatus || { available: 'unknown', reason: 'Stock check service unavailable' }
-    });
+    const prescriptions = await PrescriptionService.createBatchPrescriptions(req.user, req.body.patientId, req.body.medicines);
+    res.status(201).json(prescriptions);
   } catch (err) {
     next(err);
   }
 });
 
-// Universal view endpoint - all authenticated users can view any patient's prescriptions
+router.post('/add', authMiddleware, roleMiddleware(['DOCTOR', 'THERAPIST', 'ADMIN', 'ADMIN_DOCTOR']), upload.single('file'), validate({ body: addPrescriptionSchema }), async (req, res, next) => {
+  try {
+    const prescription = await PrescriptionService.addPrescription(req.user, req.body, req.file?.filename);
+    res.status(201).json(prescription);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/patient/:id/view', authMiddleware, async (req, res, next) => {
   try {
-    const patientId = req.params.id;
-    const prescriptions = await prisma.prescription.findMany({
-      where: { patientId },
-      include: {
-        doctor: { include: { user: true } },
-        therapist: { include: { user: true } },
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+    const prescriptions = await PrescriptionService.viewAnyPatientPrescriptions(req.params.id);
     res.json(prescriptions);
   } catch (err) {
     next(err);
   }
 });
 
-// Download prescription file - no role restrictions
 router.get('/download/:filename', authMiddleware, (req, res) => {
   try {
     const filename = req.params.filename;

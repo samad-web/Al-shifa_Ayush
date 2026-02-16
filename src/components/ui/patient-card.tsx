@@ -9,6 +9,7 @@ interface PatientCardProps {
   variant?: "default" | "compact" | "highlight";
   className?: string;
   onClick?: () => void;
+  children?: React.ReactNode;
 }
 
 export function PatientCard({
@@ -19,6 +20,7 @@ export function PatientCard({
   variant = "default",
   className,
   onClick,
+  children,
 }: PatientCardProps) {
   return (
     <div
@@ -46,6 +48,11 @@ export function PatientCard({
         </div>
         {status && <StatusBadge status={status} />}
       </div>
+      {children && (
+        <div className="mt-3 flex gap-2 border-t border-border/50 pt-3">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

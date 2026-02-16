@@ -5,8 +5,9 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Panel } from "@/components/ui/panel";
 import { PatientCard } from "@/components/ui/patient-card";
 import { useAuth } from "@/hooks/useAuth";
-import { Users, Search, Filter } from "lucide-react";
+import { Users, Search, Filter, MessageSquare } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 export default function TherapistPatients() {
     const { profile } = useAuth();
@@ -78,7 +79,17 @@ export default function TherapistPatients() {
                                     }}
                                     phoneNumber={patient.phoneNumber}
                                     reason={patient.therapyType}
-                                />
+                                >
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full gap-2"
+                                        onClick={() => window.location.href = `/chat?partner=${patient.userId}`}
+                                    >
+                                        <MessageSquare className="w-4 h-4" />
+                                        Message
+                                    </Button>
+                                </PatientCard>
                             ))}
                         </div>
                     ) : (
