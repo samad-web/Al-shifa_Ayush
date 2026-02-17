@@ -9,7 +9,8 @@ import {
   CheckCircle2,
   ChevronLeft,
   Settings2,
-  AlertCircle
+  AlertCircle,
+  Clock
 } from "lucide-react";
 import { Button } from "@/components/common/button";
 import { Slider } from "@/components/ui/slider";
@@ -30,7 +31,6 @@ export default function PatientOnboarding() {
   const [isComplete, setIsComplete] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-
   const [formData, setFormData] = useState({
     gender: profile?.patient?.gender || "",
     therapyType: profile?.patient?.therapyType || "",
@@ -40,6 +40,23 @@ export default function PatientOnboarding() {
     painLevel: 0,
     painLocations: [] as string[],
   });
+
+  const calculateSleepDuration = (bedtime: string, wakeTime: string) => {
+    if (!bedtime || !wakeTime) return formData.sleepDuration;
+    const [sH, sM] = bedtime.split(':').map(Number);
+    const [eH, eM] = wakeTime.split(':').map(Number);
+    let diff = (eH * 60 + eM) - (sH * 60 + sM);
+    if (diff < 0) diff += 24 * 60;
+    return Math.round((diff / 60) * 10) / 10;
+  };
+
+  const handleTimeChange = (field: 'sleepBedtime' | 'sleepWakeTime', value: string) => {
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value };
+      const duration = calculateSleepDuration(newData.sleepBedtime, newData.sleepWakeTime);
+      return { ...newData, sleepDuration: duration };
+    });
+  };
 
   const steps = [
     {
@@ -219,39 +236,51 @@ export default function PatientOnboarding() {
               <div className="space-y-10 animate-in fade-in duration-500">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
                   <div className="space-y-4">
-                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Bedtime</Label>
-                    <Input
-                      type="time"
-                      className="h-14 lg:h-16 text-xl font-bold bg-secondary/20 border-border/50 rounded-2xl focus:ring-primary/20"
-                      value={formData.sleepBedtime}
-                      onChange={(e) => setFormData({ ...formData, sleepBedtime: e.target.value })}
-                    />
+                    <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/70">BEDTIME</Label>
+                    <div className="relative group">
+                      <Input
+                        type="time"
+                        className="h-16 lg:h-20 text-2xl font-black bg-secondary/10 border-border/30 rounded-2xl focus:ring-primary/20 pr-12 transition-all group-hover:bg-secondary/20"
+                        value={formData.sleepBedtime}
+                        onChange={(e) => handleTimeChange('sleepBedtime', e.target.value)}
+                      />
+                      <Clock className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/40" />
+                    </div>
                   </div>
                   <div className="space-y-4">
-                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Wake time</Label>
-                    <Input
-                      type="time"
-                      className="h-14 lg:h-16 text-xl font-bold bg-secondary/20 border-border/50 rounded-2xl focus:ring-primary/20"
-                      value={formData.sleepWakeTime}
-                      onChange={(e) => setFormData({ ...formData, sleepWakeTime: e.target.value })}
-                    />
+                    <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/70">WAKE TIME</Label>
+                    <div className="relative group">
+                      <Input
+                        type="time"
+                        className="h-16 lg:h-20 text-2xl font-black bg-secondary/10 border-border/30 rounded-2xl focus:ring-primary/20 pr-12 transition-all group-hover:bg-secondary/20"
+                        value={formData.sleepWakeTime}
+                        onChange={(e) => handleTimeChange('sleepWakeTime', e.target.value)}
+                      />
+                      <Clock className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/40" />
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-6 pt-4 border-t border-border/50">
-                  <div className="flex justify-between items-end">
-                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Average Sleep Duration</Label>
-                    <span className="text-2xl font-black text-primary">{formData.sleepDuration} <span className="text-sm">hrs</span></span>
+                <div className="space-y-8 pt-8 border-t border-border/50">
+                  <div className="flex justify-between items-center">
+                    <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/70">AVERAGE SLEEP DURATION</Label>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl font-black text-primary animate-value-pop">{formData.sleepDuration}</span>
+                      <span className="text-sm font-black text-primary/70 uppercase tracking-wider">hrs</span>
+                    </div>
                   </div>
-                  <Slider
-                    min={4}
-                    max={12}
-                    step={0.5}
-                    value={[formData.sleepDuration]}
-                    onValueChange={(v) => setFormData({ ...formData, sleepDuration: v[0] })}
-                  />
-                  <div className="flex justify-between text-[10px] font-bold text-muted-foreground">
+                  <div className="px-1">
+                    <Slider
+                      min={4}
+                      max={12}
+                      step={0.5}
+                      value={[formData.sleepDuration]}
+                      onValueChange={(v) => setFormData({ ...formData, sleepDuration: v[0] })}
+                      className="py-4"
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] font-black text-muted-foreground/50 uppercase tracking-widest">
                     <span>4 Hours</span>
-                    <span>8 Hours (Ideal)</span>
+                    <span className="text-primary/60">8 Hours (Ideal)</span>
                     <span>12 Hours</span>
                   </div>
                 </div>

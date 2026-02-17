@@ -8,7 +8,8 @@ import { AppLayout } from "@/components/layout/app-layout";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, ShieldCheck, Mail, Lock, Loader2, ArrowLeft } from "lucide-react";
+import { UserPlus, ShieldCheck, Mail, Lock, Loader2, ArrowLeft, Building2 } from "lucide-react";
+import { useBranches } from "@/hooks/useBranches";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
@@ -24,10 +25,11 @@ const roles = [
 export default function CreateUser() {
   const { role } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ email: "", password: "", fullName: "", role: "PATIENT" });
+  const [form, setForm] = useState({ email: "", password: "", fullName: "", role: "PATIENT", branchId: "" });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const { branches } = useBranches();
 
   if (role !== "ADMIN_DOCTOR" && role !== "ADMIN") {
     return (
@@ -69,7 +71,7 @@ export default function CreateUser() {
         setError(data.error || "Failed to create user");
       } else {
         setSuccess("User identity created successfully!");
-        setForm({ email: "", password: "", fullName: "", role: "PATIENT" });
+        setForm({ email: "", password: "", fullName: "", role: "PATIENT", branchId: "" });
       }
     } catch (err) {
       setError("Network connectivity error. Please try again.");
@@ -124,8 +126,8 @@ export default function CreateUser() {
           <div className="lg:col-span-8">
             <Card className="shadow-elevated border-border/60">
               <CardHeader className="bg-secondary/10 border-b border-border/50">
-                <CardTitle>Identity Details</CardTitle>
-                <CardDescription>Enter the primary credentials for the new user</CardDescription>
+                <CardTitle>Account Identification</CardTitle>
+                <CardDescription>Primary credentials and identity details</CardDescription>
               </CardHeader>
               <form onSubmit={handleSubmit}>
                 <CardContent className="space-y-6 pt-8">
@@ -180,21 +182,47 @@ export default function CreateUser() {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="role" className="flex items-center gap-2">
-                      <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" />
-                      Access Level (Role)
-                    </Label>
-                    <Select value={form.role} onValueChange={setRole}>
-                      <SelectTrigger className="h-12 bg-secondary/30 border-secondary focus:bg-background transition-all rounded-xl">
-                        <SelectValue placeholder="Assign a role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {roles.map((r) => (
-                          <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="pt-8 mt-8 border-t border-border/50 space-y-6">
+                    <div className="flex flex-col gap-1">
+                      <h3 className="text-lg font-bold text-foreground">Clinical Assignment</h3>
+                      <p className="text-sm text-muted-foreground">Designate the branch and access level for this identity</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="branchId" className="flex items-center gap-2">
+                          <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+                          Assigned Branch
+                        </Label>
+                        <Select value={form.branchId} onValueChange={(val) => setForm({ ...form, branchId: val })}>
+                          <SelectTrigger className="h-12 bg-secondary/30 border-secondary focus:bg-background transition-all rounded-xl">
+                            <SelectValue placeholder="Select clinical branch" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {branches.map((b: any) => (
+                              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="role" className="flex items-center gap-2">
+                          <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" />
+                          Access Level (Role)
+                        </Label>
+                        <Select value={form.role} onValueChange={setRole}>
+                          <SelectTrigger className="h-12 bg-secondary/30 border-secondary focus:bg-background transition-all rounded-xl">
+                            <SelectValue placeholder="Assign a role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roles.map((r) => (
+                              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Status Messages */}

@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client';
+import { notificationService } from './notification.service.js';
+import { AvailabilityService } from './availability.service.js';
 
 const prisma = new PrismaClient();
 
@@ -35,6 +37,11 @@ export class AppointmentService {
             where = { therapistId: therapistRecord.id };
         }
 
+        const user = await prisma.user.findUnique({ where: { id } });
+        if (user?.branchId && role !== 'ADMIN_DOCTOR') {
+            where.branchId = user.branchId;
+        }
+
         return prisma.appointment.findMany({
             where,
             include: includeDetails,
@@ -56,6 +63,52 @@ export class AppointmentService {
         } else {
             if (!patientId) throw new Error('patientId is required');
             actualPatientId = patientId;
+        }
+
+        // Duplicate Check Logic
+        const appointmentDate = new Date(date);
+        const existingAppointment = await prisma.appointment.findFirst({
+            where: {
+                patientId: actualPatientId,
+                doctorId,
+                date: appointmentDate,
+                status: { notIn: ['CANCELLED'] }
+            }
+        });
+
+        if (existingAppointment) {
+            throw new Error('An appointment already exists for this patient and doctor at the selected time.');
+        }
+
+        // Doctor double-booking prevention (basic)
+        const doctorBusy = await prisma.appointment.findFirst({
+            where: {
+                doctorId,
+                date: appointmentDate,
+                status: { notIn: ['CANCELLED'] }
+            }
+        });
+
+        if (doctorBusy) {
+            throw new Error('The selected doctor is already booked at this time.');
+        }
+
+        // Availability Check
+        if (doctorId) {
+            const appointmentEndTime = new Date(appointmentDate.getTime() + 60 * 60 * 1000); // 1 hour duration
+            const startTimeStr = appointmentDate.toTimeString().slice(0, 5);
+            const endTimeStr = appointmentEndTime.toTimeString().slice(0, 5);
+
+            const availability = await AvailabilityService.checkAvailability(
+                doctorId,
+                appointmentDate.toISOString(),
+                startTimeStr,
+                endTimeStr
+            );
+
+            if (!availability.available) {
+                throw new Error(`Doctor is unavailable: ${availability.reason}`);
+            }
         }
 
         // Triage Validation
@@ -89,18 +142,28 @@ export class AppointmentService {
             }
         }
 
-        return prisma.appointment.create({
+        const appointment = await prisma.appointment.create({
             data: {
                 patientId: actualPatientId,
                 doctorId,
                 therapistId,
-                date: new Date(date),
+                date: appointmentDate,
                 status: user.role === 'PATIENT' ? 'PENDING' : (status || 'CONFIRMED'),
                 notes,
-                triageSessionId
+                triageSessionId,
+                branchId: user.branchId || (await prisma.patient.findUnique({ where: { id: actualPatientId } }))?.branchId
             },
             include: includeDetails
         });
+
+        // Trigger notification
+        try {
+            await notificationService.sendAppointmentConfirmation(appointment.id);
+        } catch (notifyError) {
+            console.error('[AppointmentService] Failed to send confirmation notification:', notifyError.message);
+        }
+
+        return appointment;
     }
 
     static async updateAppointment(id, user, data) {
@@ -134,10 +197,23 @@ export class AppointmentService {
         });
     }
 
-    static async getAvailableStaff() {
+    static async getAvailableStaff(user) {
+        const where = {};
+        if (user.branchId && user.role !== 'ADMIN_DOCTOR') {
+            where.user = { branchId: user.branchId };
+        }
+
         const [doctors, therapists] = await Promise.all([
-            prisma.doctor.findMany({ include: { user: { select: { email: true, role: true } } }, orderBy: { fullName: 'asc' } }),
-            prisma.therapist.findMany({ include: { user: { select: { email: true, role: true } } }, orderBy: { fullName: 'asc' } })
+            prisma.doctor.findMany({
+                where,
+                include: { user: { select: { email: true, role: true, branchId: true } } },
+                orderBy: { fullName: 'asc' }
+            }),
+            prisma.therapist.findMany({
+                where,
+                include: { user: { select: { email: true, role: true, branchId: true } } },
+                orderBy: { fullName: 'asc' }
+            })
         ]);
         return { doctors, therapists };
     }

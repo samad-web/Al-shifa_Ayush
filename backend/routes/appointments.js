@@ -11,7 +11,7 @@ const appointmentSchema = z.object({
   doctorId: z.string().optional(),
   therapistId: z.string().optional(),
   date: z.string(),
-  status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED']).optional(),
+  status: z.enum(['PENDING', 'SCHEDULED', 'CONFIRMED', 'CANCELLED', 'COMPLETED']).optional(),
   notes: z.string().optional(),
   triageSessionId: z.string().optional(),
   contactDetails: z.object({
@@ -23,7 +23,7 @@ const appointmentSchema = z.object({
 
 const updateAppointmentSchema = z.object({
   date: z.string().optional(),
-  status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED']).optional(),
+  status: z.enum(['PENDING', 'SCHEDULED', 'CONFIRMED', 'CANCELLED', 'COMPLETED']).optional(),
   notes: z.string().optional()
 });
 
@@ -47,7 +47,7 @@ router.post('/', authMiddleware, roleMiddleware(['PATIENT', 'ADMIN', 'ADMIN_DOCT
 
 router.get('/available-staff', authMiddleware, async (req, res, next) => {
   try {
-    const staff = await AppointmentService.getAvailableStaff();
+    const staff = await AppointmentService.getAvailableStaff(req.user);
     res.json(staff);
   } catch (err) {
     next(err);

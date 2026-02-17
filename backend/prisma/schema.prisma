@@ -24,7 +24,51 @@ model User {
   patient                Patient?
   pharmacist             Pharmacist?
   pharmacyDispenses      PharmacyDispense[]
+  pharmacyOrders         PharmacyOrder[]
   therapist              Therapist?
+  branch                 Branch?                 @relation(fields: [branchId], references: [id])
+  branchId               String?
+  auditLogs              AuditLog[]
+}
+
+model Branch {
+  id                String              @id @default(uuid())
+  name              String
+  address           String?
+  phone             String?
+  email             String?
+  isActive          Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  users             User[]
+  patients          Patient[]
+  appointments      Appointment[]
+  prescriptions     Prescription[]
+  pharmacyOrders    PharmacyOrder[]
+  pharmacyDispenses PharmacyDispense[]
+  medicineStocks    MedicineStock[]
+  triageSessions    TriageSession[]
+  invoices          Invoice[]
+  payments          Payment[]
+  videoPrescriptions VideoPrescription[]
+  conversations     Conversation[]
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  oldData    Json?
+  newData    Json?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
 }
 
 model Doctor {
@@ -44,6 +88,23 @@ model Doctor {
   journeys           Journey[]
   prescriptions      Prescription[]
   videoPrescriptions VideoPrescription[]
+  blockedSlots       BlockedSlot[]
+}
+
+model BlockedSlot {
+  id        String    @id @default(uuid())
+  doctorId  String
+  date      DateTime?
+  dayOfWeek Int?
+  startTime String
+  endTime   String
+  reason    String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  doctor    Doctor    @relation(fields: [doctorId], references: [id])
+
+  @@index([doctorId])
+  @@index([date])
 }
 
 model Therapist {
@@ -76,6 +137,7 @@ model Pharmacist {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   user            User     @relation(fields: [userId], references: [id])
+  conversations   Conversation[]
 }
 
 model Patient {
@@ -102,19 +164,23 @@ model Patient {
   user                User                @relation(fields: [userId], references: [id])
   payments            Payment[]
   pharmacyDispenses   PharmacyDispense[]
+  pharmacyOrders      PharmacyOrder[]
   prescriptions       Prescription[]
   triageSessions      TriageSession[]
   videoPrescriptions  VideoPrescription[]
+  branch              Branch?             @relation(fields: [branchId], references: [id])
+  branchId            String?
 }
 
 model DailyCheckIn {
   id         String   @id @default(uuid())
   patientId  String
   painLevel  Int
-  sleepHours Float
-  mood       String
-  notes      String?
-  createdAt  DateTime @default(now())
+  mobilityScore Int?
+  sleepHours    Float
+  mood         String
+  notes        String?
+  createdAt    DateTime @default(now())
   patient    Patient  @relation(fields: [patientId], references: [id])
 
   @@index([patientId, createdAt])
@@ -144,6 +210,8 @@ model VideoPrescription {
   patient     Patient       @relation(fields: [patientId], references: [id])
   therapist   Therapist?    @relation(fields: [therapistId], references: [id])
   video       ExerciseVideo @relation(fields: [videoId], references: [id])
+  branch      Branch?       @relation(fields: [branchId], references: [id])
+  branchId    String?
 
   @@index([patientId])
 }
@@ -166,6 +234,8 @@ model Appointment {
   patient          Patient        @relation(fields: [patientId], references: [id])
   therapist        Therapist?     @relation(fields: [therapistId], references: [id])
   triageSession    TriageSession? @relation(fields: [triageSessionId], references: [id])
+  branch           Branch?        @relation(fields: [branchId], references: [id])
+  branchId         String?
 
   @@index([patientId])
   @@index([doctorId])
@@ -175,21 +245,30 @@ model Appointment {
 }
 
 model Prescription {
-  id             String     @id @default(uuid())
-  patientId      String
-  doctorId       String?
-  therapistId    String?
-  fileUrl        String?
-  medicationName String
-  dosage         String
-  frequency      String
-  duration       String
-  notes          String?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-  doctor         Doctor?    @relation(fields: [doctorId], references: [id])
-  patient        Patient    @relation(fields: [patientId], references: [id])
-  therapist      Therapist? @relation(fields: [therapistId], references: [id])
+  id                String          @id @default(uuid())
+  patientId         String
+  doctorId          String?
+  therapistId       String?
+  medicineId        String?
+  fileUrl           String?
+  medicationName    String
+  dosage            String
+  frequency         String
+  duration          String
+  notes             String?
+  totalQuantity     Int             @default(0)
+  lowStockThreshold Int             @default(5)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  doctor            Doctor?         @relation(fields: [doctorId], references: [id])
+  medicine          Medicine?       @relation(fields: [medicineId], references: [id])
+  patient           Patient         @relation(fields: [patientId], references: [id])
+  therapist         Therapist?      @relation(fields: [therapistId], references: [id])
+  medicationLogs    MedicationLog[]
+  pharmacyDispenses PharmacyDispense[]
+  pharmacyOrders    PharmacyOrder[]
+  branch            Branch?            @relation(fields: [branchId], references: [id])
+  branchId          String?
 
   @@index([patientId])
   @@index([doctorId])
@@ -282,18 +361,22 @@ model Journey {
 }
 
 model MedicationLog {
-  id             String    @id @default(uuid())
-  journeyId      String
+  id             String        @id @default(uuid())
+  journeyId      String?
+  prescriptionId String?
   date           DateTime
   medicationName String
   dosage         String
-  taken          Boolean   @default(false)
+  quantityTaken  Int           @default(1)
+  taken          Boolean       @default(false)
   takenAt        DateTime?
   notes          String?
-  createdAt      DateTime  @default(now())
-  journey        Journey   @relation(fields: [journeyId], references: [id])
+  createdAt      DateTime      @default(now())
+  journey        Journey?      @relation(fields: [journeyId], references: [id])
+  prescription   Prescription? @relation(fields: [prescriptionId], references: [id])
 
   @@index([journeyId, date])
+  @@index([prescriptionId])
 }
 
 model BulkOperation {
@@ -331,6 +414,8 @@ model Payment {
   invoiceId     String?
   invoice       Invoice? @relation(fields: [invoiceId], references: [id])
   patient       Patient  @relation(fields: [patientId], references: [id])
+  branch        Branch?  @relation(fields: [branchId], references: [id])
+  branchId      String?
 
   @@index([patientId])
   @@index([status])
@@ -349,8 +434,10 @@ model Medicine {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   dispenseItems DispenseItem[]
-  invoiceItems  InvoiceItem[]
-  stocks        MedicineStock[]
+  invoiceItems       InvoiceItem[]
+  stocks             MedicineStock[]
+  prescriptions      Prescription[]
+  pharmacyOrderItems PharmacyOrderItem[]
 
   @@index([name])
 }
@@ -366,6 +453,8 @@ model MedicineStock {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   medicine    Medicine @relation(fields: [medicineId], references: [id])
+  branch      Branch?  @relation(fields: [branchId], references: [id])
+  branchId    String?
 
   @@index([medicineId])
   @@index([expiryDate])
@@ -383,9 +472,50 @@ model PharmacyDispense {
   items          DispenseItem[]
   dispenser      User           @relation(fields: [dispensedBy], references: [id])
   patient        Patient        @relation(fields: [patientId], references: [id])
+  prescription   Prescription?  @relation(fields: [prescriptionId], references: [id])
+  order          PharmacyOrder? @relation(fields: [orderId], references: [id])
+  orderId        String?
+  branch         Branch?        @relation(fields: [branchId], references: [id])
+  branchId       String?
 
   @@index([patientId])
   @@index([createdAt])
+}
+
+model PharmacyOrder {
+  id             String              @id @default(uuid())
+  patientId      String
+  prescriptionId String?
+  orderedBy      String
+  totalAmount    Float
+  status         String              @default("PENDING") // PENDING, APPROVED, DISPATCHED, DELIVERED, CANCELLED
+  urgency        String              @default("NORMAL") // NORMAL, URGENT, CRITICAL
+  notes          String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  items          PharmacyOrderItem[]
+  dispenses      PharmacyDispense[]
+  orderer        User                @relation(fields: [orderedBy], references: [id])
+  patient        Patient             @relation(fields: [patientId], references: [id])
+  prescription   Prescription?       @relation(fields: [prescriptionId], references: [id])
+  branch         Branch?             @relation(fields: [branchId], references: [id])
+  branchId       String?
+
+  @@index([patientId])
+  @@index([status])
+  @@index([urgency])
+  @@index([createdAt])
+}
+
+model PharmacyOrderItem {
+  id         String        @id @default(uuid())
+  orderId    String
+  medicineId String
+  quantity   Int
+  unitPrice  Float
+  totalPrice Float
+  order      PharmacyOrder @relation(fields: [orderId], references: [id])
+  medicine   Medicine      @relation(fields: [medicineId], references: [id])
 }
 
 model DispenseItem {
@@ -413,6 +543,8 @@ model Invoice {
   patient     Patient       @relation(fields: [patientId], references: [id])
   items       InvoiceItem[]
   payments    Payment[]
+  branch      Branch?       @relation(fields: [branchId], references: [id])
+  branchId    String?
 
   @@index([patientId])
   @@index([status])
@@ -442,27 +574,35 @@ model TriageSession {
   appointment        Appointment?
   documents          Document[]
   patient            Patient      @relation(fields: [patientId], references: [id])
+  branch             Branch?      @relation(fields: [branchId], references: [id])
+  branchId           String?
 
   @@index([patientId])
 }
 
 model Conversation {
-  id          String     @id @default(uuid())
-  patientId   String
-  doctorId    String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  therapistId String?
-  doctor      Doctor?    @relation(fields: [doctorId], references: [id])
-  patient     Patient    @relation(fields: [patientId], references: [id])
-  therapist   Therapist? @relation(fields: [therapistId], references: [id])
-  messages    Message[]
+  id           String      @id @default(uuid())
+  patientId    String
+  doctorId     String?
+  therapistId  String?
+  pharmacistId String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  doctor       Doctor?     @relation(fields: [doctorId], references: [id])
+  patient      Patient     @relation(fields: [patientId], references: [id])
+  therapist    Therapist?  @relation(fields: [therapistId], references: [id])
+  pharmacist   Pharmacist? @relation(fields: [pharmacistId], references: [id])
+  messages     Message[]
+  branch       Branch?     @relation(fields: [branchId], references: [id])
+  branchId     String?
 
   @@unique([patientId, doctorId])
   @@unique([patientId, therapistId])
+  @@unique([patientId, pharmacistId])
   @@index([patientId])
   @@index([doctorId])
   @@index([therapistId])
+  @@index([pharmacistId])
 }
 
 model Message {

@@ -1,16 +1,16 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
-import { Input } from "@/components/common/input";
-import { Label } from "@/components/common/label";
-import { Button } from "@/components/common/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/layout/app-layout";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import { Activity, AlertCircle, Loader2, CheckCircle2 } from "lucide-react";
+import { Activity, AlertCircle, Loader2, CheckCircle2, UserPlus } from "lucide-react";
 import { useRef } from "react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
@@ -18,62 +18,135 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000
 export default function AssignPatient() {
   const { role } = useAuth();
   const { toast } = useToast();
+
   const [doctors, setDoctors] = useState([]);
   const [patients, setPatients] = useState([]);
   const [doctorId, setDoctorId] = useState("");
   const [patientId, setPatientId] = useState("");
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("accessToken");
+      if (!token) throw new Error("No access token found");
+
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [doctorsRes, patientsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/user/list-doctors`, { headers }),
+        fetch(`${API_BASE_URL}/api/user/list-patients`, { headers })
+      ]);
+
+      if (!doctorsRes.ok || !patientsRes.ok) {
+        throw new Error("Failed to fetch data");
+      }
+
+      const doctorsData = await doctorsRes.json();
+      const patientsData = await patientsRes.json();
+
+      setDoctors(doctorsData);
+      setPatients(patientsData);
+    } catch (err: any) {
+      console.error("Error fetching assignment data:", err);
+      setError(err.message || "Failed to load data");
+      toast({ title: "Error", description: "Failed to load assignment data.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
-    // Fetch doctors and patients
-    fetch(`${API_BASE_URL}/api/user/list-doctors`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
-    })
-      .then((res) => res.json())
-      .then(setDoctors);
-    fetch(`${API_BASE_URL}/api/user/list-patients`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
-    })
-      .then((res) => res.json())
-      .then(setPatients);
-  }, []);
+    if (role === "ADMIN" || role === "ADMIN_DOCTOR") {
+      fetchData();
+    }
+  }, [role, fetchData]);
+
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("[AssignPatient] Starting assignment...");
     setError("");
     setSuccess("");
     setAssigning(true);
+
     try {
+      if (!patientId || !doctorId) {
+        throw new Error("Please select both a doctor and a patient.");
+      }
+
+      const token = localStorage.getItem("accessToken");
+      console.log("[AssignPatient] Token available:", !!token);
+
       const res = await fetch(`${API_BASE_URL}/api/user/assign-patient`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ patientId, doctorId }),
       });
+
+      console.log("[AssignPatient] Response status:", res.status);
+
       const data = await res.json();
+      console.log("[AssignPatient] Response data:", data);
+
       if (!res.ok) {
-        setError(data.error || "Failed to assign");
-        toast({ title: "Assignment failed", description: data.error || "Failed to assign", variant: "destructive" });
-      } else {
-        setSuccess("Patient assigned successfully!");
-        toast({ title: "Success", description: "Patient assigned successfully!" });
-        setDoctorId("");
-        setPatientId("");
+        throw new Error(data.error || "Failed to assign patient");
       }
-    } catch {
-      setError("Network error");
-      toast({ title: "Network error", description: "Could not assign patient", variant: "destructive" });
+
+      setSuccess("Patient assigned successfully!");
+      toast({ title: "Success", description: "Patient assigned successfully!" });
+
+      // Clear selection
+      setDoctorId("");
+      setPatientId("");
+
+      // Delay refresh to allow success message to be seen and avoid immediate unmount/remount race conditions
+      // Also, we don't want to flash the full page loader just for a refresh.
+      // Better to fetch silently or just don't fetch if not strictly necessary for the immediate view.
+      // If we must fetch, verify fetchData safety.
+      // verify fetchData exists in scope (it does)
+      console.log("[AssignPatient] Refreshing data...");
+      // We will NOT trigger full loading state for this refresh to prevent UI flash/unmount
+      // We'll call a silent refresh version or just fetch and update state without setLoading(true)
+
+      const refreshData = async () => {
+        try {
+          const headers = { Authorization: `Bearer ${token}` };
+          const [doctorsRes, patientsRes] = await Promise.all([
+            fetch(`${API_BASE_URL}/api/user/list-doctors`, { headers }),
+            fetch(`${API_BASE_URL}/api/user/list-patients`, { headers })
+          ]);
+          if (doctorsRes.ok && patientsRes.ok) {
+            const d = await doctorsRes.json();
+            const p = await patientsRes.json();
+            if (Array.isArray(d)) setDoctors(d);
+            if (Array.isArray(p)) setPatients(p);
+          }
+        } catch (refreshErr) {
+          console.error("Silent refresh failed", refreshErr);
+        }
+      };
+
+      await refreshData();
+
+    } catch (err: any) {
+      console.error("[AssignPatient] Assignment error:", err);
+      setError(err.message || "An unexpected error occurred");
+      toast({ title: "Assignment failed", description: err.message || "Could not assign patient", variant: "destructive" });
     } finally {
       setAssigning(false);
     }
   };
 
-  if (role !== "ADMIN" && role !== "ADMIN_DOCTOR") return <div>Access denied.</div>;
+  if (role !== "ADMIN" && role !== "ADMIN_DOCTOR") return <div className="p-8 text-center text-muted-foreground">Access denied.</div>;
 
   // --- Patient search logic (debounced, client-side) ---
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -101,15 +174,41 @@ export default function AssignPatient() {
   const noPatients = patients.length === 0;
   const noPatientMatches = filteredPatients.length === 0 && !noPatients;
 
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] animate-in fade-in duration-500">
+          <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
+          <p className="text-muted-foreground font-medium italic">Loading assignment data...</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error && !doctors.length && !patients.length) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-in fade-in duration-500">
+          <div className="p-4 rounded-full bg-attention/10 mb-4">
+            <AlertCircle className="w-10 h-10 text-attention" />
+          </div>
+          <h3 className="text-xl font-bold mb-2">Unavailable</h3>
+          <p className="text-muted-foreground max-w-md mb-6">{error}</p>
+          <Button variant="outline" onClick={fetchData}>Try Again</Button>
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
       <div className="container max-w-6xl mx-auto px-4 py-8">
         <PageHeader
           title="Clinical Assignment"
-          description="Map patients to healthcare providers and manage doctor workload."
+          subtitle="Map patients to healthcare providers and manage doctor workload."
         />
 
-        <div className="mt-10 grid grid-cols-1 lg:grid-cols-5 gap-10 items-start">
+        <div className="mt-10 grid grid-cols-1 lg:grid-cols-5 gap-10 items-start animate-in slide-in-from-bottom-4 duration-700">
 
           {/* Left Column: Context / Doctor Overviews (2/5 width) */}
           <div className="lg:col-span-2 space-y-6">
@@ -129,7 +228,7 @@ export default function AssignPatient() {
                     <p className="text-sm text-muted-foreground italic">No doctors available to display.</p>
                   ) : (
                     doctors.slice(0, 6).map((d: any) => (
-                      <div key={d.id} className="flex items-center justify-between p-3 rounded-xl bg-background border border-border/50">
+                      <div key={d.id} className="flex items-center justify-between p-3 rounded-xl bg-background border border-border/50 transition-all hover:bg-secondary/10">
                         <div className="flex flex-col">
                           <span className="font-bold text-sm text-foreground">{d.fullName || d.user?.email}</span>
                           <span className="text-[11px] text-muted-foreground uppercase font-bold tracking-tight">
@@ -172,8 +271,15 @@ export default function AssignPatient() {
           <div className="lg:col-span-3">
             <Card className="shadow-elevated border-border/60">
               <CardHeader className="bg-secondary/10 border-b border-border/50">
-                <CardTitle className="text-xl">New Patient Assignment</CardTitle>
-                <CardDescription>Link a patient record to a specific doctor</CardDescription>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-background rounded-lg shadow-sm">
+                    <UserPlus className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">New Patient Assignment</CardTitle>
+                    <CardDescription>Link a patient record to a specific doctor</CardDescription>
+                  </div>
+                </div>
               </CardHeader>
               <form onSubmit={handleAssign} className="space-y-6">
                 <CardContent className="space-y-8 pt-8">
@@ -230,13 +336,13 @@ export default function AssignPatient() {
                   {/* Status Messages */}
                   <div className="min-h-[20px]">
                     {error && (
-                      <div className="flex items-center gap-2 text-attention text-sm font-bold animate-shake">
+                      <div className="flex items-center gap-2 text-attention text-sm font-bold animate-shake bg-attention/10 p-3 rounded-lg border border-attention/20">
                         <AlertCircle className="w-4 h-4" />
                         {error}
                       </div>
                     )}
                     {success && (
-                      <div className="flex items-center gap-2 text-wellness text-sm font-bold animate-fade-in">
+                      <div className="flex items-center gap-2 text-wellness text-sm font-bold animate-fade-in bg-wellness/10 p-3 rounded-lg border border-wellness/20">
                         <CheckCircle2 className="w-4 h-4" />
                         {success}
                       </div>
@@ -250,7 +356,7 @@ export default function AssignPatient() {
                   </div>
                   <Button
                     type="submit"
-                    className="h-12 px-10 text-lg font-bold rounded-xl shadow-lg"
+                    className="h-12 px-10 text-lg font-bold rounded-xl shadow-lg transition-all hover:scale-[1.02]"
                     disabled={!doctorId || !patientId || assigning || noDoctors || noPatients}
                   >
                     {assigning ? (

@@ -8,11 +8,15 @@ class InventoryService {
      * @param {string} name - The name of the medicine.
      * @returns {Promise<object>} - Stock status object.
      */
-    async checkStockByMedicineName(name) {
+    async checkStockByMedicineName(name, branchId) {
         try {
             const medicine = await prisma.medicine.findFirst({
                 where: { name: { equals: name, mode: 'insensitive' } },
-                include: { stocks: true }
+                include: {
+                    stocks: {
+                        where: branchId ? { branchId } : {}
+                    }
+                }
             });
 
             if (!medicine) {
@@ -56,7 +60,11 @@ class InventoryService {
                 // Auto-pick batches (FIFO: oldest first by expiry)
                 let remainingToDeduct = item.quantity;
                 const stocks = await tx.medicineStock.findMany({
-                    where: { medicineId: item.medicineId, quantity: { gt: 0 } },
+                    where: {
+                        medicineId: item.medicineId,
+                        quantity: { gt: 0 },
+                        branchId: item.branchId // Enforce branch deduction
+                    },
                     orderBy: { expiryDate: 'asc' }
                 });
 
@@ -92,10 +100,14 @@ class InventoryService {
     /**
      * Get all medicines that are low on stock.
      */
-    async getLowStockMedicines() {
+    async getLowStockMedicines(branchId) {
         // This is a bit complex in Prisma due to aggregate filters
         const medicines = await prisma.medicine.findMany({
-            include: { stocks: true }
+            include: {
+                stocks: {
+                    where: branchId ? { branchId } : {}
+                }
+            }
         });
 
         return medicines.filter(med => {

@@ -30,6 +30,7 @@ interface Message {
         doctor?: { fullName: string };
         patient?: { fullName: string };
         therapist?: { fullName: string };
+        pharmacist?: { fullName: string };
     };
 }
 
@@ -38,6 +39,7 @@ interface Conversation {
     patient: { fullName: string; userId: string };
     doctor?: { fullName: string; userId: string; profilePhoto?: string };
     therapist?: { fullName: string; userId: string; profilePhoto?: string };
+    pharmacist?: { fullName: string; userId: string; profilePhoto?: string };
     messages: Message[];
 }
 
@@ -60,7 +62,8 @@ export default function Chat() {
                 const existing = conversations.find(c =>
                     c.patient.userId === partnerId ||
                     c.doctor?.userId === partnerId ||
-                    c.therapist?.userId === partnerId
+                    c.therapist?.userId === partnerId ||
+                    c.pharmacist?.userId === partnerId
                 );
                 if (existing) {
                     setSelectedConv(existing);
@@ -135,7 +138,7 @@ export default function Chat() {
 
     const getPartnerName = (conv: Conversation) => {
         if (role === 'PATIENT') {
-            return conv.doctor?.fullName || conv.therapist?.fullName || "Medical Professional";
+            return conv.doctor?.fullName || conv.therapist?.fullName || conv.pharmacist?.fullName || "Medical Professional";
         }
         return conv.patient.fullName || "Patient";
     };
@@ -181,8 +184,8 @@ export default function Chat() {
                                             )}
                                         >
                                             <Avatar className="h-12 w-12 border-2 border-background shadow-sm">
-                                                {(conv.doctor?.profilePhoto || conv.therapist?.profilePhoto) && (
-                                                    <AvatarImage src={conv.doctor?.profilePhoto || conv.therapist?.profilePhoto} />
+                                                {(conv.doctor?.profilePhoto || conv.therapist?.profilePhoto || conv.pharmacist?.profilePhoto) && (
+                                                    <AvatarImage src={conv.doctor?.profilePhoto || conv.therapist?.profilePhoto || conv.pharmacist?.profilePhoto} />
                                                 )}
                                                 <AvatarFallback className="bg-primary/5 text-primary">
                                                     <User className="h-6 w-6" />
@@ -225,8 +228,8 @@ export default function Chat() {
                                             <ChevronLeft className="h-6 w-6" />
                                         </Button>
                                         <Avatar className="h-10 w-10">
-                                            {(selectedConv.doctor?.profilePhoto || selectedConv.therapist?.profilePhoto) && (
-                                                <AvatarImage src={selectedConv.doctor?.profilePhoto || selectedConv.therapist?.profilePhoto} />
+                                            {(selectedConv.doctor?.profilePhoto || selectedConv.therapist?.profilePhoto || selectedConv.pharmacist?.profilePhoto) && (
+                                                <AvatarImage src={selectedConv.doctor?.profilePhoto || selectedConv.therapist?.profilePhoto || selectedConv.pharmacist?.profilePhoto} />
                                             )}
                                             <AvatarFallback><User /></AvatarFallback>
                                         </Avatar>

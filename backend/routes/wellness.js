@@ -64,4 +64,29 @@ router.post('/prescribe', authMiddleware, roleMiddleware(['DOCTOR', 'THERAPIST',
     }
 });
 
+router.get('/my-medications', authMiddleware, roleMiddleware(['PATIENT']), async (req, res, next) => {
+    try {
+        const medications = await WellnessService.getMyMedications(req.user.id);
+        res.json(medications);
+    } catch (err) {
+        next(err);
+    }
+});
+
+const medicationLogSchema = z.object({
+    prescriptionId: z.string(),
+    quantityTaken: z.number().optional(),
+    date: z.string().optional(),
+    notes: z.string().optional(),
+});
+
+router.post('/medication-log', authMiddleware, roleMiddleware(['PATIENT']), validate({ body: medicationLogSchema }), async (req, res, next) => {
+    try {
+        const log = await WellnessService.submitMedicationLog(req.user.id, req.body);
+        res.json({ message: 'Medication logged successfully', log });
+    } catch (err) {
+        next(err);
+    }
+});
+
 export default router;

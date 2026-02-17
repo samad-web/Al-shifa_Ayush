@@ -5,7 +5,8 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export class AuthService {
-    static async register({ email, password, role }) {
+    static async register(data) {
+        const { email, password, role } = data;
         const existing = await prisma.user.findUnique({ where: { email } });
         if (existing) {
             const error = new Error('Email already registered');
@@ -15,10 +16,10 @@ export class AuthService {
 
         const hashed = await bcrypt.hash(password, 10);
         const user = await prisma.user.create({
-            data: { email, password: hashed, role }
+            data: { email, password: hashed, role, branchId: data.branchId }
         });
 
-        return { id: user.id, email: user.email, role: user.role };
+        return { id: user.id, email: user.email, role: user.role, branchId: user.branchId };
     }
 
     static async login({ email, password }) {
@@ -38,7 +39,7 @@ export class AuthService {
         }
 
         const accessToken = jwt.sign(
-            { id: user.id, role: user.role },
+            { id: user.id, role: user.role, branchId: user.branchId },
             process.env.JWT_SECRET,
             { expiresIn: '15m' }
         );
@@ -52,7 +53,7 @@ export class AuthService {
         return {
             accessToken,
             refreshToken,
-            user: { id: user.id, email: user.email, role: user.role }
+            user: { id: user.id, email: user.email, role: user.role, branchId: user.branchId }
         };
     }
 }

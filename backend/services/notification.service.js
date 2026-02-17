@@ -117,6 +117,50 @@ class NotificationService {
     }
 
     /**
+     * Send appointment confirmation
+     */
+    async sendAppointmentConfirmation(appointmentId) {
+        try {
+            const appointment = await prisma.appointment.findUnique({
+                where: { id: appointmentId },
+                include: {
+                    patient: { include: { user: true } },
+                    doctor: { include: { user: true } },
+                },
+            });
+
+            if (!appointment) return;
+
+            const patientName = appointment.patient.fullName || 'Patient';
+            const doctorName = appointment.doctor.fullName || appointment.doctor.user.email;
+            const appointmentDate = new Date(appointment.date).toLocaleString('en-IN', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+            });
+
+            const title = `Appointment Confirmed`;
+            const message = `Hi ${patientName}, your appointment with Dr. ${doctorName} on ${appointmentDate} has been successfully booked.`;
+
+            await this.create({
+                userId: appointment.patient.userId,
+                type: 'APPOINTMENT_CONFIRMED',
+                title,
+                message,
+                data: { appointmentId },
+                sendEmail: true,
+                sendSMS: true,
+            });
+
+            console.log(`[NotificationService] Sent confirmation for appointment ${appointmentId}`);
+        } catch (error) {
+            console.error('[NotificationService] Error sending appointment confirmation:', error);
+        }
+    }
+
+    /**
      * Send prescription update notification
      */
     async sendPrescriptionNotification(prescriptionId) {
@@ -175,6 +219,53 @@ class NotificationService {
             }
         } catch (error) {
             console.error('[NotificationService] Error sending low stock alert:', error);
+        }
+    }
+
+    /**
+     * Send low medication alert for a patient to Admins and the specific Doctor
+     */
+    async sendClientLowMedicationAlert({ patientId, patientName, medicineName, remainingQuantity, urgency }) {
+        try {
+            // Find all admins and admin doctors
+            const admins = await prisma.user.findMany({
+                where: {
+                    role: { in: ['ADMIN', 'ADMIN_DOCTOR'] },
+                    deletedAt: null
+                }
+            });
+
+            // Find the assigned doctor for this patient
+            const patient = await prisma.patient.findUnique({
+                where: { id: patientId },
+                include: {
+                    appointments: {
+                        orderBy: { date: 'desc' },
+                        take: 1,
+                        select: { doctor: { select: { userId: true } } }
+                    }
+                }
+            });
+
+            const doctorUserId = patient?.appointments[0]?.doctor?.userId;
+            const recipients = new Set(admins.map(a => a.id));
+            if (doctorUserId) recipients.add(doctorUserId);
+
+            const title = `Low Medication Alert: ${urgency.toUpperCase()}`;
+            const message = `Patient ${patientName} is running low on ${medicineName}. Remaining: ${remainingQuantity} doses. Please follow up for refill.`;
+
+            for (const userId of recipients) {
+                await this.create({
+                    userId,
+                    type: 'SYSTEM_ALERT',
+                    title,
+                    message,
+                    data: { patientId, medicineName, remainingQuantity, urgency },
+                    sendEmail: urgency === 'critical'
+                });
+            }
+        } catch (error) {
+            console.error('[NotificationService] Error sending client low med alert:', error);
         }
     }
 

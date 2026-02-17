@@ -21,18 +21,29 @@ export class UserService {
         }));
     }
 
-    static async getDoctorGamification() {
-        const doctors = await prisma.doctor.findMany({
-            include: {
-                user: true,
-                appointments: true,
-                journeys: true,
-            },
-        });
+    static async getClinicalGamification() {
+        const [doctors, therapists] = await Promise.all([
+            prisma.doctor.findMany({
+                include: {
+                    user: true,
+                    appointments: true,
+                    journeys: true,
+                },
+            }),
+            prisma.therapist.findMany({
+                include: {
+                    user: true,
+                    appointments: true,
+                    journeys: true,
+                },
+            })
+        ]);
 
-        const stats = doctors.map((doc) => {
-            const appointmentCount = doc.appointments.length;
-            const journeys = doc.journeys || [];
+        const clinicians = [...doctors, ...therapists];
+
+        const stats = clinicians.map((clinician) => {
+            const appointmentCount = clinician.appointments.length;
+            const journeys = clinician.journeys || [];
             let totalExpectedSessions = 0;
             let totalCompletedSessions = 0;
             journeys.forEach(j => {
@@ -47,11 +58,12 @@ export class UserService {
             const excellenceScore = Math.round((recoveryRate * 0.7) + (volumeScore * 0.3));
 
             return {
-                id: doc.id,
-                fullName: doc.fullName,
-                specialization: doc.specialization,
-                profilePhoto: doc.profilePhoto,
-                email: doc.user?.email,
+                id: clinician.id,
+                fullName: clinician.fullName,
+                specialization: clinician.specialization,
+                profilePhoto: clinician.profilePhoto,
+                email: clinician.user?.email,
+                role: clinician.user?.role,
                 appointmentCount,
                 recoveryRate,
                 uniquePatientsCount,
@@ -99,7 +111,7 @@ export class UserService {
     static async listPatients() {
         const patients = await prisma.patient.findMany({
             where: { user: { deletedAt: null } },
-            include: { user: true }
+            include: { user: true, branch: true }
         });
         return patients.map((pat) => ({
             id: pat.id,
@@ -155,6 +167,11 @@ export class UserService {
             throw new Error('Unauthorized role');
         }
 
+        const userBranchId = (await prisma.user.findUnique({ where: { id: userId } }))?.branchId;
+        if (userBranchId && role !== 'ADMIN_DOCTOR') {
+            where.patient = { branchId: userBranchId };
+        }
+
         const journeys = await prisma.journey.findMany({
             where,
             include: {
@@ -178,7 +195,7 @@ export class UserService {
     }
 
     static async createUser(data) {
-        const { email, password, role, fullName } = data;
+        const { email, password, role, fullName, branchId } = data;
         const existing = await prisma.user.findUnique({ where: { email } });
         if (existing) {
             const error = new Error('Email already registered');
@@ -188,9 +205,9 @@ export class UserService {
 
         const hashed = await bcrypt.hash(password, 10);
         return prisma.$transaction(async (tx) => {
-            const newUser = await tx.user.create({ data: { email, password: hashed, role } });
-            const profileData = { userId: newUser.id, fullName };
-            if (role === 'DOCTOR' || role === 'ADMIN_DOCTOR') await tx.doctor.create({ data: profileData });
+            const newUser = await tx.user.create({ data: { email, password: hashed, role, branchId } });
+            const profileData = { userId: newUser.id, fullName, branchId };
+            if (role === 'DOCTOR' || role === 'ADMIN_DOCTOR') await tx.doctor.create({ data: { ...profileData, userId: newUser.id } });
             else if (role === 'THERAPIST') await tx.therapist.create({ data: profileData });
             else if (role === 'PATIENT') await tx.patient.create({ data: profileData });
             else if (role === 'PHARMACIST') await tx.pharmacist.create({ data: profileData });
@@ -212,17 +229,22 @@ export class UserService {
 
     static async getPatientById(requestedPatientId, user) {
         const isAdmin = ['ADMIN', 'ADMIN_DOCTOR'].includes(user.role);
-        const isOwnProfile = user.role === 'PATIENT' && user.patient?.id === requestedPatientId;
-        if (!isAdmin && !isOwnProfile) throw new Error('Access denied');
+        const isOwnProfile = user.role === 'PATIENT' && (user.patient?.id === requestedPatientId || user.id === requestedPatientId);
 
         const patient = await prisma.patient.findUnique({
             where: { id: requestedPatientId },
             include: {
                 user: true,
+                branch: true,
                 appointments: { include: { doctor: { include: { user: true } }, therapist: { include: { user: true } } } },
             },
         });
         if (!patient) throw new Error('Patient not found');
+
+        // Branch Isolation Check
+        if (!isAdmin && user.branchId && patient.branchId !== user.branchId && !isOwnProfile) {
+            throw new Error('Forbidden: Patient belongs to another branch');
+        }
         return { ...patient, email: patient.user?.email };
     }
 

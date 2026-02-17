@@ -29,7 +29,10 @@ export class PrescriptionService {
         }
 
         return prisma.prescription.findMany({
-            where: { patientId },
+            where: {
+                patientId,
+                ...(user.branchId && user.role !== 'ADMIN_DOCTOR' ? { branchId: user.branchId } : {})
+            },
             include: includeDetails,
             orderBy: { createdAt: 'desc' }
         });
@@ -64,17 +67,23 @@ export class PrescriptionService {
             throw error;
         }
 
+        const patient = await prisma.patient.findUnique({ where: { id: patientId } });
+        if (!patient) throw new Error('Patient not found');
+
         const prescription = await prisma.prescription.create({
             data: {
                 patientId,
                 doctorId,
                 therapistId,
+                medicineId,
                 fileUrl,
                 medicationName,
                 dosage,
                 frequency,
                 duration,
                 notes,
+                branchId: patient.branchId,
+                lowStockThreshold: data.lowStockThreshold ? parseInt(data.lowStockThreshold) : 5,
             }
         });
 
@@ -123,6 +132,9 @@ export class PrescriptionService {
             throw error;
         }
 
+        const patient = await prisma.patient.findUnique({ where: { id: patientId } });
+        if (!patient) throw new Error('Patient not found');
+
         const created = await Promise.all(medicines.map(med => {
             // Include Ayush fields in notes for now if not in schema
             const extendedNotes = [
@@ -136,11 +148,14 @@ export class PrescriptionService {
                     patientId,
                     doctorId,
                     therapistId,
+                    medicineId: med.medicineId,
                     medicationName: med.medicationName,
                     dosage: med.dosage,
                     frequency: med.frequency,
                     duration: med.duration,
                     notes: extendedNotes,
+                    branchId: patient.branchId,
+                    lowStockThreshold: med.lowStockThreshold || 5,
                 }
             });
         }));

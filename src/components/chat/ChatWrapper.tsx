@@ -5,30 +5,33 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 interface ChatWrapperProps {
     patientId: string;
-    doctorId: string;
+    doctorId?: string;
+    therapistId?: string;
+    pharmacistId?: string;
     className?: string;
     header?: React.ReactNode;
 }
 
-export function ChatWrapper({ patientId, doctorId, className, header }: ChatWrapperProps) {
+export function ChatWrapper({ patientId, doctorId, therapistId, pharmacistId, className, header }: ChatWrapperProps) {
     const [conversationId, setConversationId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (patientId && doctorId) {
+        if (patientId && (doctorId || therapistId || pharmacistId)) {
             getOrCreateConversation();
         }
-    }, [patientId, doctorId]);
+    }, [patientId, doctorId, therapistId, pharmacistId]);
 
     const getOrCreateConversation = async () => {
         try {
+            console.log("[ChatWrapper] Initiating conversation for:", { patientId, doctorId, therapistId, pharmacistId });
             const res = await fetch(`${API_BASE_URL}/api/chat/conversation`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
                 },
-                body: JSON.stringify({ patientId, doctorId })
+                body: JSON.stringify({ patientId, doctorId, therapistId, pharmacistId })
             });
             if (res.ok) {
                 const data = await res.json();

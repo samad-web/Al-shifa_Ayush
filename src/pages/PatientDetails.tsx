@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { Activity } from "lucide-react";
+import { Activity, ShoppingCart } from "lucide-react";
+import { MedicineOrderForm } from "@/components/pharmacy/MedicineOrderForm";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
@@ -34,6 +35,7 @@ export default function PatientDetails() {
       <div className="mb-2"><b>Full Name:</b> {patient.fullName || "Not provided"}</div>
       <div className="mb-2"><b>Email:</b> {patient.user?.email}</div>
       <div className="mb-2"><b>Phone:</b> {patient.phoneNumber || "Not provided"}</div>
+      <div className="mb-2"><b>Assigned Branch:</b> {patient.branch?.name || "Main Clinic"}</div>
       <div className="mb-2"><b>Patient ID:</b> {patient.id}</div>
 
       {patient.onboardingData && (
@@ -56,12 +58,22 @@ export default function PatientDetails() {
 
       <div className="mt-6 mb-2"><b>Appointments:</b></div>
       <ul className="list-disc ml-6">
-        {patient.appointments.map((appt: any) => (
-          <li key={appt.id}>
-            Doctor: {appt.doctor?.user?.email || appt.doctorId} | Date: {new Date(appt.date).toLocaleString()} | Status: {appt.status}
-          </li>
-        ))}
+        {patient.appointments.map((appt: any) => {
+          const prescriber = appt.doctor?.fullName || appt.therapist?.fullName || appt.doctor?.user?.email || appt.therapist?.user?.email || "Unknown Staff";
+          const roleLabel = appt.doctor ? "Doctor" : "Therapist";
+          return (
+            <li key={appt.id} className="text-sm mb-1">
+              <b>{roleLabel}:</b> {prescriber} | <b>Date:</b> {new Date(appt.date).toLocaleString()} | <b>Status:</b> {appt.status}
+            </li>
+          );
+        })}
       </ul>
+
+      {(role === "ADMIN" || role === "ADMIN_DOCTOR") && (
+        <div className="mt-10 pt-8 border-t">
+          <MedicineOrderForm patientId={patient.id} />
+        </div>
+      )}
     </div>
   );
 }

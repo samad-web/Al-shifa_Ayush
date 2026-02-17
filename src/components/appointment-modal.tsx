@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { TriageQuestionnaire } from "./triage/TriageQuestionnaire";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
 interface AppointmentModalProps {
     isOpen: boolean;
@@ -90,7 +91,7 @@ export function AppointmentModal({
         async function fetchData() {
             try {
                 // Fetch available staff
-                const staffRes = await fetch("/api/appointments/available-staff", {
+                const staffRes = await fetch(`${API_BASE_URL}/api/appointments/available-staff`, {
                     headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
                 });
                 if (staffRes.ok) {
@@ -103,7 +104,7 @@ export function AppointmentModal({
 
                 // Fetch patients if admin
                 if (isAdmin) {
-                    const patientsRes = await fetch("/api/user/list-patients", {
+                    const patientsRes = await fetch(`${API_BASE_URL}/api/user/list-patients`, {
                         headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
                     });
                     if (patientsRes.ok) {
@@ -128,7 +129,7 @@ export function AppointmentModal({
     useEffect(() => {
         async function fetchPatientDetails(patId: string) {
             try {
-                const res = await fetch(`/api/user/patient/${patId}`, {
+                const res = await fetch(`${API_BASE_URL}/api/user/patient/${patId}`, {
                     headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
                 });
                 if (res.ok) {
@@ -210,8 +211,8 @@ Pain Locations: ${od.painLocations?.join(', ') || 'N/A'}`;
             combinedDateTime.setMinutes(parseInt(selectedMinute));
 
             const url = isEditing
-                ? `/api/appointments/${appointment.id}`
-                : "/api/appointments";
+                ? `${API_BASE_URL}/api/appointments/${appointment.id}`
+                : `${API_BASE_URL}/api/appointments`;
             const method = isEditing ? "PUT" : "POST";
 
             // Get authentication token
@@ -224,7 +225,6 @@ Pain Locations: ${od.painLocations?.join(', ') || 'N/A'}`;
 
             const res = await fetch(url, {
                 method,
-                credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
@@ -260,12 +260,18 @@ Pain Locations: ${od.painLocations?.join(', ') || 'N/A'}`;
                 onSuccess?.();
                 onClose();
             } else {
-                const error = await res.json();
+                const errorData = await res.json();
                 // Handle specific error cases
                 if (res.status === 401 || res.status === 403) {
                     toast.error("Authentication failed. Please log in again.");
-                } else if (error.error) {
-                    toast.error(error.error);
+                } else if (res.status === 400 && errorData.error === 'Validation failed' && errorData.details) {
+                    // Display all validation issues
+                    const detailMessages = errorData.details.map((d: any) => d.message).join(", ");
+                    toast.error(`Validation Error: ${detailMessages}`);
+                } else if (errorData.error) {
+                    toast.error(errorData.error);
+                } else if (errorData.message) {
+                    toast.error(errorData.message);
                 } else {
                     toast.error("Failed to save appointment. Please try again.");
                 }

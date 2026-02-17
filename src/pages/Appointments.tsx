@@ -8,6 +8,7 @@ import { Plus, CalendarDays, Clock, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotifications } from "@/contexts/NotificationContext";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
 type AppointmentStatus = "ALL" | "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
 
@@ -29,7 +30,7 @@ export default function Appointments() {
 
     const fetchAppointments = async () => {
         try {
-            const res = await fetch("/api/appointments", {
+            const res = await fetch(`${API_BASE_URL}/api/appointments`, {
                 headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
             });
             if (res.ok) {
@@ -52,9 +53,9 @@ export default function Appointments() {
         if (!confirm("Are you sure you want to cancel this appointment?")) return;
 
         try {
-            const res = await fetch(`/api/appointments/${appointmentId}`, {
+            const res = await fetch(`${API_BASE_URL}/api/appointments/${appointmentId}`, {
                 method: "DELETE",
-                credentials: "include",
+                headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
             });
             if (res.ok) {
                 toast.success("Appointment cancelled successfully");
@@ -69,7 +70,7 @@ export default function Appointments() {
 
     const handleApprove = async (appointmentId: string) => {
         try {
-            const res = await fetch(`/api/appointments/${appointmentId}/approve`, {
+            const res = await fetch(`${API_BASE_URL}/api/appointments/${appointmentId}/approve`, {
                 method: "PUT",
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
@@ -101,7 +102,7 @@ export default function Appointments() {
         if (!confirm("Are you sure you want to reject this appointment?")) return;
 
         try {
-            const res = await fetch(`/api/appointments/${appointmentId}/reject`, {
+            const res = await fetch(`${API_BASE_URL}/api/appointments/${appointmentId}/reject`, {
                 method: "PUT",
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem("accessToken")}`,

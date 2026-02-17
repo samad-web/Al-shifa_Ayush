@@ -35,9 +35,20 @@ const dispenseSchema = z.object({
     })),
 });
 
+const orderSchema = z.object({
+    patientId: z.string(),
+    prescriptionId: z.string().optional(),
+    urgency: z.enum(['NORMAL', 'URGENT', 'CRITICAL']).optional(),
+    notes: z.string().optional(),
+    items: z.array(z.object({
+        medicineId: z.string(),
+        quantity: z.number().min(1),
+    })),
+});
+
 router.get('/medicines', authMiddleware, async (req, res, next) => {
     try {
-        const data = await PharmacyService.getAllMedicines();
+        const data = await PharmacyService.getAllMedicines(req.user.branchId);
         res.json(data);
     } catch (err) {
         next(err);
@@ -73,7 +84,7 @@ router.post('/stock', authMiddleware, roleMiddleware(['ADMIN', 'PHARMACIST', 'AD
 
 router.get('/stock/low', authMiddleware, roleMiddleware(['ADMIN', 'PHARMACIST', 'ADMIN_DOCTOR']), async (req, res, next) => {
     try {
-        const data = await PharmacyService.getLowStockMedicines();
+        const data = await PharmacyService.getLowStockMedicines(req.user.branchId);
         res.json(data);
     } catch (err) {
         next(err);
@@ -91,7 +102,35 @@ router.post('/dispense', authMiddleware, roleMiddleware(['PHARMACIST', 'ADMIN', 
 
 router.get('/dispenses', authMiddleware, async (req, res, next) => {
     try {
-        const data = await PharmacyService.getDispenseHistory();
+        const data = await PharmacyService.getDispenseHistory(req.user.branchId);
+        res.json(data);
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.post('/orders', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR', 'DOCTOR']), validate({ body: orderSchema }), async (req, res, next) => {
+    try {
+        const data = await PharmacyService.createOrder(req.user.id, req.body);
+        res.status(201).json(data);
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.get('/orders', authMiddleware, async (req, res, next) => {
+    try {
+        const data = await PharmacyService.getOrders(req.query, req.user.branchId);
+        res.json(data);
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.patch('/orders/:id/status', authMiddleware, roleMiddleware(['PHARMACIST', 'ADMIN', 'ADMIN_DOCTOR']), async (req, res, next) => {
+    try {
+        const { status } = req.body;
+        const data = await PharmacyService.updateOrderStatus(req.user.id, req.params.id, status);
         res.json(data);
     } catch (err) {
         next(err);

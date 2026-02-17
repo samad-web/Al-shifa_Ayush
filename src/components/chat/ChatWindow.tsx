@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useWebSocket } from "@/contexts/WebSocketContext";
 import { useAuth } from "@/hooks/useAuth";
-import { Send, User } from "lucide-react";
+import { Send, User, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -36,6 +36,8 @@ export function ChatWindow({ conversationId, className, header }: ChatWindowProp
     const { user } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -68,16 +70,26 @@ export function ChatWindow({ conversationId, className, header }: ChatWindowProp
     }, [messages]);
 
     const fetchMessages = async (id: string) => {
+        setLoading(true);
+        setError(null);
         try {
+            console.log("[ChatWindow] Fetching messages for:", id);
             const res = await fetch(`${API_BASE_URL}/api/chat/messages/${id}`, {
                 headers: { "Authorization": `Bearer ${localStorage.getItem("accessToken")}` }
             });
             if (res.ok) {
                 const data = await res.json();
                 setMessages(data);
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                console.error("[ChatWindow] Failed to fetch messages:", res.status, errData);
+                setError(errData.error || "Failed to load messages");
             }
         } catch (err) {
-            console.error(err);
+            console.error("[ChatWindow] Network error:", err);
+            setError("Connection error. Please try again.");
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -97,44 +109,62 @@ export function ChatWindow({ conversationId, className, header }: ChatWindowProp
 
             {/* Messages Area */}
             <ScrollArea className="flex-1 p-4 translate-z-0">
-                <div className="space-y-4">
-                    {messages.map((msg, idx) => {
-                        const isMe = msg.senderId === user?.id;
-                        const showAvatar = idx === 0 || messages[idx - 1].senderId !== msg.senderId;
+                {loading && messages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground animate-pulse">
+                        <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+                        <p className="text-xs font-bold uppercase tracking-widest">Securing Connection...</p>
+                    </div>
+                ) : error ? (
+                    <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
+                        <div className="p-3 bg-attention/10 rounded-full">
+                            <Activity className="w-6 h-6 text-attention" />
+                        </div>
+                        <div className="space-y-1">
+                            <p className="font-bold text-attention">Restricted Access or Network Issue</p>
+                            <p className="text-xs text-muted-foreground">{error}</p>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => fetchMessages(conversationId)}>Retry Connection</Button>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {messages.map((msg, idx) => {
+                            const isMe = msg.senderId === user?.id;
+                            const showAvatar = idx === 0 || messages[idx - 1].senderId !== msg.senderId;
 
-                        return (
-                            <div key={msg.id} className={cn(
-                                "flex items-end gap-2 max-w-[85%]",
-                                isMe ? "ml-auto flex-row-reverse" : "mr-auto"
-                            )}>
-                                {!isMe && (
-                                    <div className="w-8 h-8 flex-shrink-0">
-                                        {showAvatar && (
-                                            <Avatar className="h-8 w-8">
-                                                <AvatarFallback className="text-[10px]"><User className="h-3 w-3" /></AvatarFallback>
-                                            </Avatar>
-                                        )}
-                                    </div>
-                                )}
-                                <div className={cn(
-                                    "p-3 rounded-2xl shadow-sm relative group max-w-full overflow-hidden break-words",
-                                    isMe
-                                        ? "bg-primary text-primary-foreground rounded-br-none"
-                                        : "bg-card text-foreground rounded-bl-none border border-border/50"
+                            return (
+                                <div key={msg.id} className={cn(
+                                    "flex items-end gap-2 max-w-[85%]",
+                                    isMe ? "ml-auto flex-row-reverse" : "mr-auto"
                                 )}>
-                                    <p className="text-sm leading-relaxed">{msg.content}</p>
-                                    <span className={cn(
-                                        "text-[9px] mt-1 block opacity-50",
-                                        isMe ? "text-right" : "text-left"
+                                    {!isMe && (
+                                        <div className="w-8 h-8 flex-shrink-0">
+                                            {showAvatar && (
+                                                <Avatar className="h-8 w-8">
+                                                    <AvatarFallback className="text-[10px]"><User className="h-3 w-3" /></AvatarFallback>
+                                                </Avatar>
+                                            )}
+                                        </div>
+                                    )}
+                                    <div className={cn(
+                                        "p-3 rounded-2xl shadow-sm relative group max-w-full overflow-hidden break-words",
+                                        isMe
+                                            ? "bg-primary text-primary-foreground rounded-br-none"
+                                            : "bg-card text-foreground rounded-bl-none border border-border/50"
                                     )}>
-                                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
+                                        <p className="text-sm leading-relaxed">{msg.content}</p>
+                                        <span className={cn(
+                                            "text-[9px] mt-1 block opacity-50",
+                                            isMe ? "text-right" : "text-left"
+                                        )}>
+                                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    })}
-                    <div ref={scrollRef} />
-                </div>
+                            );
+                        })}
+                        <div ref={scrollRef} />
+                    </div>
+                )}
             </ScrollArea>
 
             {/* Input Area */}

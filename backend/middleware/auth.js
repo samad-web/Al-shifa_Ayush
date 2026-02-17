@@ -19,3 +19,6 @@ export function roleMiddleware(roles) {
     next();
   };
 }
+
+export const authenticateToken = authMiddleware;
+export const authorizeRoles = roleMiddleware;

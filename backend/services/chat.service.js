@@ -3,18 +3,23 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export class ChatService {
-    static async getOrCreateConversation(patientId, targetId, isTherapist = false) {
-        const where = isTherapist
-            ? { patientId_therapistId: { patientId, therapistId: targetId } }
-            : { patientId_doctorId: { patientId, doctorId: targetId } };
+    static async getOrCreateConversation(patientId, targetId, clinicianType = 'DOCTOR') {
+        const whereMap = {
+            'DOCTOR': { patientId_doctorId: { patientId, doctorId: targetId } },
+            'THERAPIST': { patientId_therapistId: { patientId, therapistId: targetId } },
+            'PHARMACIST': { patientId_pharmacistId: { patientId, pharmacistId: targetId } }
+        };
+
+        const where = whereMap[clinicianType] || whereMap['DOCTOR'];
 
         let conversation = await prisma.conversation.findUnique({ where });
 
         if (!conversation) {
+            const dataField = clinicianType === 'DOCTOR' ? 'doctorId' : (clinicianType === 'THERAPIST' ? 'therapistId' : 'pharmacistId');
             conversation = await prisma.conversation.create({
                 data: {
                     patientId,
-                    [isTherapist ? 'therapistId' : 'doctorId']: targetId
+                    [dataField]: targetId
                 }
             });
         }
@@ -32,6 +37,8 @@ export class ChatService {
             where = { doctorId: user.doctor.id };
         } else if (user.therapist) {
             where = { therapistId: user.therapist.id };
+        } else if (user.pharmacist) {
+            where = { pharmacistId: user.pharmacist.id };
         } else if (user.patient) {
             const patientId = user.patient.id;
 
@@ -60,15 +67,15 @@ export class ChatService {
             });
 
             for (const dId of targetDoctorIds) {
-                await this.getOrCreateConversation(patientId, dId, false);
+                await this.getOrCreateConversation(patientId, dId, 'DOCTOR');
             }
             for (const tId of targetTherapistIds) {
-                await this.getOrCreateConversation(patientId, tId, true);
+                await this.getOrCreateConversation(patientId, tId, 'THERAPIST');
             }
 
             where = { patientId };
         } else {
-            throw new Error('Only doctors, therapists and patients can chat');
+            throw new Error('Only doctors, therapists, pharmacists and patients can chat');
         }
 
         return prisma.conversation.findMany({
@@ -77,6 +84,7 @@ export class ChatService {
                 patient: { select: { fullName: true, userId: true } },
                 doctor: { select: { fullName: true, userId: true, profilePhoto: true } },
                 therapist: { select: { fullName: true, userId: true, profilePhoto: true } },
+                pharmacist: { select: { fullName: true, userId: true, profilePhoto: true } },
                 messages: {
                     orderBy: { createdAt: 'desc' },
                     take: 1
@@ -96,7 +104,8 @@ export class ChatService {
                         role: true,
                         doctor: { select: { fullName: true } },
                         patient: { select: { fullName: true } },
-                        therapist: { select: { fullName: true } }
+                        therapist: { select: { fullName: true } },
+                        pharmacist: { select: { fullName: true } }
                     }
                 }
             },
@@ -118,20 +127,20 @@ export class ChatService {
 
         if (!currentUser || !partnerUser) throw new Error('User not found');
 
-        let patientId, targetId, isTherapist = false;
+        let patientId, targetId, clinicianType = 'DOCTOR';
 
-        if (currentUser.patient && (partnerUser.doctor || partnerUser.therapist)) {
+        if (currentUser.patient && (partnerUser.doctor || partnerUser.therapist || partnerUser.pharmacist)) {
             patientId = currentUser.patient.id;
-            targetId = partnerUser.doctor?.id || partnerUser.therapist?.id;
-            isTherapist = !!partnerUser.therapist;
-        } else if (partnerUser.patient && (currentUser.doctor || currentUser.therapist)) {
+            targetId = partnerUser.doctor?.id || partnerUser.therapist?.id || partnerUser.pharmacist?.id;
+            clinicianType = partnerUser.doctor ? 'DOCTOR' : (partnerUser.therapist ? 'THERAPIST' : 'PHARMACIST');
+        } else if (partnerUser.patient && (currentUser.doctor || currentUser.therapist || currentUser.pharmacist)) {
             patientId = partnerUser.patient.id;
-            targetId = currentUser.doctor?.id || currentUser.therapist?.id;
-            isTherapist = !!currentUser.therapist;
+            targetId = currentUser.doctor?.id || currentUser.therapist?.id || currentUser.pharmacist?.id;
+            clinicianType = currentUser.doctor ? 'DOCTOR' : (currentUser.therapist ? 'THERAPIST' : 'PHARMACIST');
         } else {
-            throw new Error('Only patients can chat with doctors/therapists and vice versa');
+            throw new Error('Only patients can chat with doctors/therapists/pharmacists and vice versa');
         }
 
-        return this.getOrCreateConversation(patientId, targetId, isTherapist);
+        return this.getOrCreateConversation(patientId, targetId, clinicianType);
     }
 }

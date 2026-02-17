@@ -147,6 +147,13 @@ export default function PharmacyDashboard() {
                             <History className="w-5 h-5" />
                             Dispensing History
                         </Link>
+                        <Link
+                            to="/pharmacy/orders"
+                            className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg shadow hover:shadow-lg transition font-semibold"
+                        >
+                            <ShoppingCart className="w-5 h-5" />
+                            Manage Medicine Orders
+                        </Link>
                     </div>
                 </Panel>
 

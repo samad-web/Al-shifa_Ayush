@@ -4,9 +4,13 @@ import { inventoryService } from './inventory.service.js';
 const prisma = new PrismaClient();
 
 export class PharmacyService {
-    static async getAllMedicines() {
+    static async getAllMedicines(branchId) {
         const medicines = await prisma.medicine.findMany({
-            include: { stocks: true },
+            include: {
+                stocks: {
+                    where: branchId ? { branchId } : {}
+                }
+            },
             orderBy: { name: 'asc' }
         });
         return medicines.map(med => ({
@@ -41,6 +45,7 @@ export class PharmacyService {
                 expiryDate: new Date(data.expiryDate),
                 quantity: parseInt(data.quantity),
                 minStock: data.minStock ? parseInt(data.minStock) : 10,
+                branchId: data.branchId
             }
         });
     }
@@ -50,7 +55,7 @@ export class PharmacyService {
     }
 
     static async dispenseMedicines(userId, data) {
-        const { patientId, prescriptionId, items } = data;
+        const { patientId, prescriptionId, items, orderId } = data;
 
         return prisma.$transaction(async (tx) => {
             let totalAmount = 0;
@@ -68,11 +73,28 @@ export class PharmacyService {
                     quantity: item.quantity,
                     unitPrice: medicine.price,
                     totalPrice: itemTotalPrice,
-                    stockId: item.stockId
+                    stockId: item.stockId,
+                    branchId: data.branchId || (await tx.user.findUnique({ where: { id: userId } }))?.branchId
                 });
             }
 
-            await inventoryService.deductStock(tx, items);
+            await inventoryService.deductStock(tx, itemsWithPrices);
+
+            // If a prescription is linked, increment its total quantity
+            if (prescriptionId) {
+                for (const item of itemsWithPrices) {
+                    const prescription = await tx.prescription.findFirst({
+                        where: { id: prescriptionId, patientId, medicineId: item.medicineId }
+                    });
+
+                    if (prescription) {
+                        await tx.prescription.update({
+                            where: { id: prescription.id },
+                            data: { totalQuantity: { increment: item.quantity } }
+                        });
+                    }
+                }
+            }
 
             return tx.pharmacyDispense.create({
                 data: {
@@ -80,6 +102,7 @@ export class PharmacyService {
                     prescriptionId,
                     dispensedBy: userId,
                     totalAmount,
+                    orderId,
                     items: {
                         create: itemsWithPrices.map(item => ({
                             medicineId: item.medicineId,
@@ -94,8 +117,98 @@ export class PharmacyService {
         });
     }
 
-    static async getDispenseHistory() {
+    static async createOrder(userId, data) {
+        const { patientId, prescriptionId, items, urgency, notes } = data;
+
+        return prisma.$transaction(async (tx) => {
+            let totalAmount = 0;
+            const itemsWithPrices = [];
+
+            for (const item of items) {
+                const medicine = await tx.medicine.findUnique({ where: { id: item.medicineId } });
+                if (!medicine) throw new Error(`Medicine ${item.medicineId} not found`);
+
+                const itemTotalPrice = medicine.price * item.quantity;
+                totalAmount += itemTotalPrice;
+
+                itemsWithPrices.push({
+                    medicineId: item.medicineId,
+                    quantity: item.quantity,
+                    unitPrice: medicine.price,
+                    totalPrice: itemTotalPrice
+                });
+            }
+
+            return tx.pharmacyOrder.create({
+                data: {
+                    patientId,
+                    prescriptionId,
+                    orderedBy: userId,
+                    totalAmount,
+                    urgency: urgency || 'NORMAL',
+                    notes,
+                    branchId: data.branchId || (await tx.user.findUnique({ where: { id: userId } }))?.branchId,
+                    items: {
+                        create: itemsWithPrices
+                    }
+                },
+                include: { items: { include: { medicine: true } }, patient: true, orderer: true }
+            });
+        });
+    }
+
+    static async getOrders(filters = {}, branchId) {
+        const { status, urgency, patientId } = filters;
+        const where = {};
+        if (status) where.status = status;
+        if (urgency) where.urgency = urgency;
+        if (patientId) where.patientId = patientId;
+        if (branchId) where.branchId = branchId;
+
+        return prisma.pharmacyOrder.findMany({
+            where,
+            include: {
+                items: { include: { medicine: true } },
+                patient: { select: { fullName: true, id: true } },
+                orderer: { select: { email: true, role: true } },
+                prescription: { select: { medicationName: true, doctor: { select: { fullName: true } } } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+    }
+
+    static async updateOrderStatus(userId, orderId, status) {
+        const order = await prisma.pharmacyOrder.findUnique({
+            where: { id: orderId },
+            include: { items: true }
+        });
+
+        if (!order) throw new Error('Order not found');
+
+        // If status is transitioning to DELIVERED, automatically dispense
+        if (status === 'DELIVERED' && order.status !== 'DELIVERED') {
+            await this.dispenseMedicines(userId, {
+                patientId: order.patientId,
+                prescriptionId: order.prescriptionId,
+                orderId: order.id,
+                items: order.items.map(item => ({
+                    medicineId: item.medicineId,
+                    quantity: item.quantity
+                }))
+            });
+        }
+
+        return prisma.pharmacyOrder.update({
+            where: { id: orderId },
+            data: { status },
+            include: { items: { include: { medicine: true } }, patient: true }
+        });
+    }
+
+    static async getDispenseHistory(branchId) {
+        const where = branchId ? { branchId } : {};
         return prisma.pharmacyDispense.findMany({
+            where,
             include: {
                 patient: { select: { fullName: true } },
                 dispenser: { select: { email: true } },

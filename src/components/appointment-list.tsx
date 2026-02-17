@@ -1,9 +1,14 @@
-import { Calendar, Clock, User, Edit2, XCircle, CheckCircle2, Video, MessageSquare } from "lucide-react";
+import { Calendar, Clock, User, Edit2, XCircle, CheckCircle2, Video, MessageSquare, Activity } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ProgressAnalysisReport } from "./ProgressAnalysisReport";
+import { useState } from "react";
+import { toast } from "sonner";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
 interface Appointment {
     id: string;
@@ -60,6 +65,31 @@ export function AppointmentList({
     onStartSession,
 }: AppointmentListProps) {
     const { role } = useAuth();
+    const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+    const [reportData, setReportData] = useState<any>(null);
+    const [loadingReport, setLoadingReport] = useState(false);
+
+    const fetchProgressReport = async (patientId: string) => {
+        setLoadingReport(true);
+        setSelectedPatientId(patientId);
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/reports/patient/${patientId}/progress`, {
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+                },
+            });
+            if (res.ok) {
+                const result = await res.json();
+                setReportData(result.data);
+            } else {
+                toast.error("Failed to fetch progress report");
+            }
+        } catch (error) {
+            toast.error("Error fetching progress report");
+        } finally {
+            setLoadingReport(false);
+        }
+    };
     const getStatusColor = (status: string) => {
         switch (status.toUpperCase()) {
             case "PENDING":
@@ -287,6 +317,18 @@ export function AppointmentList({
                                             <MessageSquare className="w-3 h-3" />
                                             Message
                                         </Button>
+
+                                        {showPatientName && appointment.patient && (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => fetchProgressReport(appointment.patient!.id)}
+                                                className="gap-2 text-primary border-primary/20 hover:bg-primary/5"
+                                            >
+                                                <Activity className="w-3 h-3" />
+                                                View Progress
+                                            </Button>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -294,6 +336,23 @@ export function AppointmentList({
                     </Card>
                 );
             })}
+
+            <Dialog open={!!selectedPatientId} onOpenChange={(open) => !open && setSelectedPatientId(null)}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl font-black">
+                            {loadingReport ? "Loading Report..." : `Progress Analysis: ${reportData?.patientName || "Patient"}`}
+                        </DialogTitle>
+                    </DialogHeader>
+                    {loadingReport ? (
+                        <div className="py-20 text-center text-muted-foreground">Analysing clinical data...</div>
+                    ) : reportData ? (
+                        <ProgressAnalysisReport data={reportData} />
+                    ) : (
+                        <div className="py-20 text-center text-muted-foreground">No data available for this patient.</div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

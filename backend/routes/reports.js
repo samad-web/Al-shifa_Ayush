@@ -138,4 +138,13 @@ router.get('/dashboard-stats', authMiddleware, async (req, res, next) => {
     }
 });
 
+router.get('/patient/:patientId/progress', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR', 'DOCTOR', 'THERAPIST']), async (req, res, next) => {
+    try {
+        const data = await analyticsService.getClientProgressReport(req.params.patientId);
+        res.json({ success: true, data });
+    } catch (err) {
+        next(err);
+    }
+});
+
 export default router;

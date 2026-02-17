@@ -26,6 +26,7 @@ import CreateUser from "./pages/CreateUser";
 import AdminDashboard from "./pages/AdminDashboard";
 import AssignPatient from "./pages/AssignPatient";
 import PatientDetails from "./pages/PatientDetails";
+import DoctorAvailability from "./pages/DoctorAvailability";
 import DoctorGamification from "./pages/DoctorGamification";
 import PrescriptionManagement from "./pages/PrescriptionManagement";
 import Appointments from "./pages/Appointments";
@@ -34,6 +35,8 @@ import PharmacyDashboard from "./pages/PharmacyDashboard";
 import MedicineInventory from "./pages/MedicineInventory";
 import PharmacyDispense from "./pages/PharmacyDispense";
 import PharmacyHistory from "./pages/PharmacyHistory";
+import PharmacyOrders from "./pages/PharmacyOrders";
+import BranchManagement from "./pages/BranchManagement";
 
 const queryClient = new QueryClient();
 
@@ -115,7 +118,7 @@ function AppRoutes() {
       <Route
         path="/doctor-gamification"
         element={
-          <ProtectedRoute allowedRoles={["ADMIN", "ADMIN_DOCTOR", "DOCTOR"]}>
+          <ProtectedRoute allowedRoles={["ADMIN", "ADMIN_DOCTOR", "DOCTOR", "THERAPIST"]}>
             <DoctorGamification />
           </ProtectedRoute>
         }
@@ -217,6 +220,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/branch-management"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN_DOCTOR"]}>
+            <BranchManagement />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/pharmacy"
         element={
           <ProtectedRoute allowedRoles={["PHARMACIST", "ADMIN", "ADMIN_DOCTOR"]}>
@@ -248,12 +259,28 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/pharmacy/orders"
+        element={
+          <ProtectedRoute allowedRoles={["PHARMACIST", "ADMIN", "ADMIN_DOCTOR"]}>
+            <PharmacyOrders />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="/chat"
         element={
-          <ProtectedRoute allowedRoles={["PATIENT", "DOCTOR", "ADMIN", "ADMIN_DOCTOR"]}>
+          <ProtectedRoute allowedRoles={["PATIENT", "DOCTOR", "ADMIN", "ADMIN_DOCTOR", "THERAPIST", "PHARMACIST"]}>
             <Chat />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/doctor-availability"
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN", "ADMIN_DOCTOR", "DOCTOR"]}>
+            <DoctorAvailability />
           </ProtectedRoute>
         }
       />

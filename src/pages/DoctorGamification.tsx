@@ -31,7 +31,7 @@ export default function DoctorGamification() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (role !== "DOCTOR" && role !== "ADMIN_DOCTOR" && role !== "ADMIN") return <div>Access denied.</div>;
+  if (role !== "DOCTOR" && role !== "ADMIN_DOCTOR" && role !== "ADMIN" && role !== "THERAPIST") return <div>Access denied.</div>;
 
   if (loading) return (
     <AppLayout>

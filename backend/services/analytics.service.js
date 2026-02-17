@@ -240,10 +240,130 @@ class AnalyticsService {
                 stats.todayAppointments = doctor.appointments.filter(
                     (a) => new Date(a.date).toDateString() === new Date().toDateString()
                 ).length;
+                stats.completedSittings = doctor.appointments.filter(a => a.status === 'COMPLETED').length;
+            }
+        }
+
+        if (role === 'THERAPIST') {
+            const therapist = await prisma.therapist.findUnique({
+                where: { userId },
+                include: {
+                    appointments: true,
+                }
+            });
+
+            if (therapist) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+
+                stats.todaySittings = therapist.appointments.filter(a =>
+                    new Date(a.date) >= today && new Date(a.date) < tomorrow
+                ).length;
+                stats.completedSittings = therapist.appointments.filter(a => a.status === 'COMPLETED').length;
+                stats.activeCases = [...new Set(therapist.appointments.filter(a => a.status !== 'COMPLETED').map(a => a.patientId))].length;
+                stats.hoursWorked = (stats.completedSittings * 0.75).toFixed(1);
+                stats.recoveryProgress = 75; // Logic placeholder
+                stats.sessionAdherence = 92; // Logic placeholder
             }
         }
 
         return stats;
+    }
+
+    /**
+     * Get dynamic comparative progress report for a client
+     * @param {string} patientId - The patient ID
+     */
+    async getClientProgressReport(patientId) {
+        const patient = await prisma.patient.findUnique({
+            where: { id: patientId },
+            include: {
+                dailyCheckIns: { orderBy: { createdAt: 'desc' } },
+                appointments: {
+                    where: { status: 'COMPLETED' },
+                    orderBy: { date: 'desc' }
+                }
+            }
+        });
+
+        if (!patient) throw new Error('Patient not found');
+
+        const totalSittings = patient.appointments.length;
+        const currentCheckIn = patient.dailyCheckIns[0] || null;
+        const historicalCheckIns = patient.dailyCheckIns.slice(1);
+
+        const calculateAverage = (records, key) => {
+            if (!records.length) return 0;
+            const validRecords = records.filter(r => r[key] !== null && r[key] !== undefined);
+            if (!validRecords.length) return 0;
+            return validRecords.reduce((sum, r) => sum + r[key], 0) / validRecords.length;
+        };
+
+        const prevMetrics = {
+            avgPain: calculateAverage(historicalCheckIns, 'painLevel'),
+            avgMobility: calculateAverage(historicalCheckIns, 'mobilityScore'),
+            avgSleep: calculateAverage(historicalCheckIns, 'sleepHours')
+        };
+
+        const currentMetrics = {
+            pain: currentCheckIn?.painLevel || 0,
+            mobility: currentCheckIn?.mobilityScore || 0,
+            sleep: currentCheckIn?.sleepHours || 0,
+            date: currentCheckIn?.createdAt
+        };
+
+        const calculateChange = (prev, curr, lowerIsBetter = false) => {
+            if (prev === 0) return curr > 0 ? 100 : 0;
+            const change = ((curr - prev) / prev) * 100;
+            return lowerIsBetter ? -change : change;
+        };
+
+        const analysis = {
+            painImprovement: calculateChange(prevMetrics.avgPain, currentMetrics.pain, true),
+            mobilityImprovement: calculateChange(prevMetrics.avgMobility, currentMetrics.mobility),
+            sleepImprovement: calculateChange(prevMetrics.avgSleep, currentMetrics.sleep),
+        };
+
+        return {
+            patientName: patient.fullName,
+            totalPreviousSittings: totalSittings > 0 ? totalSittings - 1 : 0,
+            previousData: {
+                averages: prevMetrics,
+                recordCount: historicalCheckIns.length,
+                breakdown: historicalCheckIns.slice(0, 5).map(h => ({
+                    date: h.createdAt,
+                    pain: h.painLevel,
+                    mobility: h.mobilityScore,
+                    sleep: h.sleepHours
+                }))
+            },
+            currentSession: {
+                metrics: currentMetrics,
+                notes: currentCheckIn?.notes || ''
+            },
+            progressAnalysis: {
+                metrics: [
+                    { label: 'Pain Level', change: analysis.painImprovement, current: currentMetrics.pain, previous: prevMetrics.avgPain },
+                    { label: 'Mobility Score', change: analysis.mobilityImprovement, current: currentMetrics.mobility, previous: prevMetrics.avgMobility },
+                    { label: 'Sleep Quality', change: analysis.sleepImprovement, current: currentMetrics.sleep, previous: prevMetrics.avgSleep }
+                ],
+                summary: this._generateSummary(analysis)
+            }
+        };
+    }
+
+    _generateSummary(analysis) {
+        const trends = [];
+        if (analysis.painImprovement > 5) trends.push("notable reduction in pain levels");
+        else if (analysis.painImprovement < -5) trends.push("slight increase in reported pain");
+
+        if (analysis.mobilityImprovement > 5) trends.push("significant improvement in mobility");
+        if (analysis.sleepImprovement > 5) trends.push("better sleep patterns observed");
+
+        if (trends.length === 0) return "Patient state is stable with no major changes in tracked metrics.";
+        return `The patient is showing a ${trends.join(' and ')}. Overall progress is positive.`;
     }
 }
 

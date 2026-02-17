@@ -20,7 +20,8 @@ const createUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   fullName: z.string().optional(),
-  role: z.enum(['ADMIN', 'ADMIN_DOCTOR', 'DOCTOR', 'THERAPIST', 'PATIENT', 'PHARMACIST'])
+  role: z.enum(['ADMIN', 'ADMIN_DOCTOR', 'DOCTOR', 'THERAPIST', 'PATIENT', 'PHARMACIST']),
+  branchId: z.string().optional()
 });
 
 const updateDoctorSchema = z.object({
@@ -67,9 +68,9 @@ router.get('/list-therapists', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_D
   }
 });
 
-router.get('/doctor-gamification', authMiddleware, roleMiddleware(['DOCTOR', 'ADMIN_DOCTOR', 'ADMIN']), async (req, res, next) => {
+router.get('/doctor-gamification', authMiddleware, roleMiddleware(['DOCTOR', 'ADMIN_DOCTOR', 'ADMIN', 'THERAPIST']), async (req, res, next) => {
   try {
-    const data = await UserService.getDoctorGamification();
+    const data = await UserService.getClinicalGamification();
     res.json(data);
   } catch (err) {
     next(err);

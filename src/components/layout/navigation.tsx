@@ -13,7 +13,8 @@ import {
   Package,
   ShoppingCart,
   History,
-  MessageSquare
+  MessageSquare,
+  Building2
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth, AppRole } from "@/hooks/useAuth";
@@ -31,6 +32,7 @@ const getRoleNavItems = (role: AppRole | null) => {
         { path: "/assign-patient", label: "Assign Patient", icon: User },
         { path: "/prescriptions", label: "Prescriptions", icon: FilePlus2 },
         { path: "/doctor-gamification", label: "Doctor Gamification", icon: Activity },
+        { path: "/doctor-availability", label: "Availability", icon: CalendarDays },
         { path: "/chat", label: "Chat", icon: MessageSquare },
       ];
     case "ADMIN_DOCTOR":
@@ -39,9 +41,11 @@ const getRoleNavItems = (role: AppRole | null) => {
         { path: "/appointments", label: "Appointments", icon: CalendarDays },
         { path: "/doctor", label: "My Patients", icon: User },
         { path: "/create-user", label: "Create User", icon: User },
+        { path: "/branch-management", label: "Branches", icon: Building2 },
         { path: "/assign-patient", label: "Assign Patient", icon: User },
         { path: "/prescriptions", label: "Prescriptions", icon: FilePlus2 },
         { path: "/doctor-gamification", label: "Doctor Gamification", icon: Activity },
+        { path: "/doctor-availability", label: "Availability", icon: CalendarDays },
         { path: "/chat", label: "Chat", icon: MessageSquare },
       ];
     case "DOCTOR":
@@ -50,6 +54,7 @@ const getRoleNavItems = (role: AppRole | null) => {
         { path: "/appointments", label: "Appointments", icon: CalendarDays },
         { path: "/prescriptions", label: "Prescriptions", icon: FilePlus2 },
         { path: "/doctor-gamification", label: "Doctor Gamification", icon: Activity },
+        { path: "/doctor-availability", label: "Availability", icon: CalendarDays },
         { path: "/chat", label: "Chat", icon: MessageSquare },
       ];
     case "THERAPIST":
@@ -57,6 +62,7 @@ const getRoleNavItems = (role: AppRole | null) => {
         { path: "/therapist", label: "Today's Sittings", icon: Heart },
         { path: "/appointments", label: "Appointments", icon: CalendarDays },
         { path: "/prescriptions", label: "Prescriptions", icon: FilePlus2 },
+        { path: "/doctor-gamification", label: "Excellence", icon: Activity },
         { path: "/chat", label: "Chat", icon: MessageSquare },
       ];
     case "PATIENT":
@@ -69,6 +75,7 @@ const getRoleNavItems = (role: AppRole | null) => {
     case "PHARMACIST":
       return [
         { path: "/pharmacy", label: "Dashboard", icon: Stethoscope },
+        { path: "/pharmacy/orders", label: "Manage Orders", icon: ShoppingCart },
         { path: "/pharmacy/inventory", label: "Inventory", icon: Package },
         { path: "/pharmacy/dispense", label: "Dispense", icon: ShoppingCart },
         { path: "/pharmacy/history", label: "History", icon: History },
