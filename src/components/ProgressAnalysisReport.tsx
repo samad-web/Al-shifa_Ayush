@@ -37,6 +37,12 @@ interface ProgressReportProps {
             };
             notes: string;
         };
+        adherence?: {
+            overallRate: number;
+            totalExpected: number;
+            totalTaken: number;
+            trendData: Array<{ date: string, adherenceRate: number }>;
+        };
         progressAnalysis: {
             metrics: Metric[];
             summary: string;
@@ -100,19 +106,45 @@ export function ProgressAnalysisReport({ data }: ProgressReportProps) {
                     </div>
                 </div>
 
-                {/* Current Session */}
+                {/* Current Session / Adherence */}
                 <div className="space-y-6">
                     <div className="flex items-center gap-2 pb-2 border-b border-border">
                         <ClipboardList className="w-5 h-5 text-wellness" />
-                        <h4 className="font-bold text-lg text-wellness">Current Session</h4>
+                        <h4 className="font-bold text-lg text-wellness">Condition & Adherence</h4>
                         <span className="text-xs text-muted-foreground ml-auto">{formatDate(data.currentSession.metrics.date)}</span>
                     </div>
 
                     <div className="grid grid-cols-3 gap-4">
                         <MetricCard label="Pain Level" value={data.currentSession.metrics.pain} variant="highlight" />
                         <MetricCard label="Mobility" value={data.currentSession.metrics.mobility} variant="highlight" />
-                        <MetricCard label="Sleep Hr" value={data.currentSession.metrics.sleep} variant="highlight" />
+                        <MetricCard
+                            label="Med. Adherence"
+                            value={`${data.adherence?.overallRate || 0}%`}
+                            variant={(data.adherence?.overallRate || 0) < 70 ? "risk" : "highlight"}
+                        />
                     </div>
+
+                    {data.adherence && (
+                        <div className="p-4 bg-primary/5 rounded-xl border border-primary/20">
+                            <p className="text-xs font-bold text-primary uppercase tracking-widest mb-3">Medication Compliance (Last 30 Days)</p>
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-muted-foreground text-sm">Taken {data.adherence.totalTaken} of {data.adherence.totalExpected} doses</span>
+                                    <span className="font-bold">{data.adherence.overallRate}%</span>
+                                </div>
+                                <div className="w-full bg-secondary/30 h-2 rounded-full overflow-hidden">
+                                    <div
+                                        className={cn(
+                                            "h-full transition-all duration-500",
+                                            data.adherence.overallRate > 80 ? "bg-wellness" :
+                                                data.adherence.overallRate > 50 ? "bg-attention" : "bg-risk"
+                                        )}
+                                        style={{ width: `${data.adherence.overallRate}%` }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <Card className="p-4 bg-wellness/5 border-wellness/20">
                         <p className="text-xs font-bold text-wellness uppercase tracking-widest mb-2">Session Clinical Notes</p>
@@ -165,11 +197,15 @@ export function ProgressAnalysisReport({ data }: ProgressReportProps) {
     );
 }
 
-function MetricCard({ label, value, variant = "default" }: { label: string; value: string | number; variant?: "default" | "highlight" }) {
+function MetricCard({ label, value, variant = "default" }: { label: string; value: string | number; variant?: "default" | "highlight" | "risk" }) {
     return (
-        <Card className={cn("p-4 text-center space-y-1", variant === "highlight" ? "bg-primary/5 border-primary/20" : "bg-card")}>
+        <Card className={cn(
+            "p-4 text-center space-y-1",
+            variant === "highlight" ? "bg-primary/5 border-primary/20" :
+                variant === "risk" ? "bg-risk/5 border-risk/20" : "bg-card"
+        )}>
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{label}</p>
-            <p className="text-2xl font-black text-foreground">{value}</p>
+            <p className={cn("text-2xl font-black", variant === "risk" ? "text-risk" : "text-foreground")}>{value}</p>
         </Card>
     );
 }

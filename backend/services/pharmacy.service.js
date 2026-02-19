@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma.js';
 import { inventoryService } from './inventory.service.js';
-
-const prisma = new PrismaClient();
 
 export class PharmacyService {
     static async getAllMedicines(branchId) {

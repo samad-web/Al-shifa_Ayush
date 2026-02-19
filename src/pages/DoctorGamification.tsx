@@ -8,21 +8,24 @@ import { StatCard } from "@/components/ui/stat-card";
 import { Panel } from "@/components/ui/panel";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { DoctorPerformanceBadge } from "@/components/ui/doctor-performance-badge";
-import { Users, Award, TrendingUp, Activity } from "lucide-react";
+import { Users, Award, Activity, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { LeaderboardDetailModal } from "@/components/gamification/LeaderboardDetailModal";
 
 export default function DoctorGamification() {
   const { role } = useAuth();
   const [stats, setStats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/user/doctor-gamification`, {
+    fetch(`${API_BASE_URL}/api/leaderboard`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
     })
       .then((res) => res.ok ? res.json() : Promise.reject(res))
@@ -57,14 +60,14 @@ export default function DoctorGamification() {
     return { label: "Clinical Resident", band: "needs-attention", next: "Attending Physician", nextAt: 60, color: "text-amber-700" };
   };
 
-  const totalExcellence = stats.length > 0 ? Math.round(stats.reduce((sum, d) => sum + (d.excellenceScore || 0), 0) / stats.length) : 0;
-  const avgRecovery = stats.length > 0 ? Math.round(stats.reduce((sum, d) => sum + (d.recoveryRate || 0), 0) / stats.length) : 0;
+  const totalExcellence = stats.length > 0 ? Math.round(stats.reduce((sum, d) => sum + (d.score || 0), 0) / stats.length) : 0;
+  const avgRecovery = stats.length > 0 ? Math.round(stats.reduce((sum, d) => sum + (d.metrics?.successRate?.value || 0), 0) / stats.length) : 0;
   const activeDoctors = stats.length;
 
   // Assuming the first doctor in the sorted list is the current "Top" or "Self" view
   // In a real app, we'd find the user's specific record
   const currentDoc = stats[0] || {};
-  const docExcellence = currentDoc.excellenceScore || 0;
+  const docExcellence = currentDoc.score || 0;
   const level = getLevel(docExcellence);
   const toNext = level.nextAt ? Math.max(0, level.nextAt - docExcellence) : 0;
 
@@ -129,7 +132,7 @@ export default function DoctorGamification() {
                         showLabel={false}
                       />
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-xl font-black text-wellness">{currentDoc.recoveryRate || 0}%</span>
+                        <span className="text-xl font-black text-wellness">{Math.round(currentDoc.metrics?.successRate?.value || 0)}%</span>
                         <span className="text-[7px] font-bold text-muted-foreground uppercase tracking-widest">Recovery Rate</span>
                       </div>
                     </div>
@@ -161,8 +164,8 @@ export default function DoctorGamification() {
               </Card>
               <Card className="border-none shadow-sm bg-accent/5">
                 <CardContent className="p-4 text-center">
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Unique Patients</p>
-                  <p className="text-2xl font-black text-accent">{currentDoc.uniquePatientsCount || 0}</p>
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Clinic Response</p>
+                  <p className="text-2xl font-black text-accent">{currentDoc.metrics?.responseTime?.value || 0}m</p>
                 </CardContent>
               </Card>
             </div>
@@ -191,14 +194,23 @@ export default function DoctorGamification() {
                 ) : (
                   <div className="divide-y divide-border/50">
                     {stats.map((doc, idx) => (
-                      <div key={doc.id} className="flex items-center justify-between p-6 hover:bg-secondary/10 transition-colors group">
+                      <div
+                        key={doc.id}
+                        className="flex items-center justify-between p-6 hover:bg-secondary/10 transition-colors group cursor-pointer"
+                        onClick={() => {
+                          setSelectedParticipantId(doc.id);
+                          setModalOpen(true);
+                        }}
+                      >
                         <div className="flex items-center gap-5">
                           <div className="w-10 h-10 rounded-full bg-secondary/40 flex items-center justify-center text-sm font-black text-muted-foreground border border-border/50 group-hover:border-primary/50 group-hover:text-primary transition-all">
                             #{idx + 1}
                           </div>
                           <div>
-                            <div className="font-bold text-foreground group-hover:text-primary transition-colors">
+                            <div className="font-bold text-foreground group-hover:text-primary transition-colors flex items-center gap-2">
                               {doc.fullName || doc.email || "Confidential Provider"}
+                              {doc.trend === 'up' && <TrendingUp className="w-3 h-3 text-wellness" />}
+                              {doc.trend === 'down' && <TrendingDown className="w-3 h-3 text-attention" />}
                             </div>
                             <div className="flex items-center gap-3 mt-1">
                               <span className="text-[10px] font-black text-muted-foreground uppercase tracking-tighter">
@@ -206,13 +218,13 @@ export default function DoctorGamification() {
                               </span>
                               <div className="flex items-center gap-1">
                                 <Activity className="w-3 h-3 text-wellness" />
-                                <span className="text-[10px] font-bold text-wellness">{doc.recoveryRate}% Recovery</span>
+                                <span className="text-[10px] font-bold text-wellness">{Math.round(doc.metrics?.successRate?.value || 0)}% Success</span>
                               </div>
                             </div>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-xl font-black text-primary">{doc.excellenceScore}</div>
+                          <div className="text-xl font-black text-primary">{doc.score}</div>
                           <div className="text-[9px] font-black text-muted-foreground uppercase">Score</div>
                         </div>
                       </div>
@@ -225,6 +237,12 @@ export default function DoctorGamification() {
 
         </div>
       </div>
+
+      <LeaderboardDetailModal
+        participantId={selectedParticipantId}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+      />
     </AppLayout>
   );
 }

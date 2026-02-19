@@ -92,6 +92,42 @@ export default function AdminDashboard() {
     setEditingAppointment(null);
   };
 
+  const handleApprove = async (appointmentId: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/appointments/${appointmentId}/approve`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+      });
+      if (res.ok) {
+        toast.success("Appointment approved");
+        fetchAppointments();
+      } else {
+        const error = await res.json();
+        toast.error(error.error || "Failed to approve");
+      }
+    } catch (error) {
+      toast.error("Failed to approve");
+    }
+  };
+
+  const handleReject = async (appointmentId: string) => {
+    if (!confirm("Reject this appointment?")) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/appointments/${appointmentId}/reject`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+      });
+      if (res.ok) {
+        toast.success("Appointment rejected");
+        fetchAppointments();
+      } else {
+        toast.error("Failed to reject");
+      }
+    } catch (error) {
+      toast.error("Failed to reject");
+    }
+  };
+
   return (
     <AppLayout>
       <div className="container max-w-7xl mx-auto px-4 py-6 md:py-8 space-y-8">
@@ -202,6 +238,8 @@ export default function AdminDashboard() {
                 appointments={appointments}
                 onEdit={handleEdit}
                 onCancel={handleCancel}
+                onApprove={handleApprove}
+                onReject={handleReject}
                 showPatientName={true}
               />
             )}

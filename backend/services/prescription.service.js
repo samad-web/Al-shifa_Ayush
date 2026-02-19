@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma.js';
 import { inventoryService } from './inventory.service.js';
-
-const prisma = new PrismaClient();
 
 const includeDetails = {
     doctor: { include: { user: true } },
@@ -39,7 +37,7 @@ export class PrescriptionService {
     }
 
     static async addPrescription(user, data, filename) {
-        const { patientId, medicationName, dosage, frequency, duration, notes, timing, vehicle, medicineId } = data;
+        const { patientId, medicationName, dosage, frequency, duration, notes, timing, vehicle, medicineId, videoUrl } = data;
         const fileUrl = filename ? `/uploads/prescriptions/${filename}` : null;
         let doctorId = null, therapistId = null;
         let allowed = false;
@@ -82,6 +80,7 @@ export class PrescriptionService {
                 frequency,
                 duration,
                 notes,
+                videoUrl,
                 branchId: patient.branchId,
                 lowStockThreshold: data.lowStockThreshold ? parseInt(data.lowStockThreshold) : 5,
             }
@@ -154,6 +153,7 @@ export class PrescriptionService {
                     frequency: med.frequency,
                     duration: med.duration,
                     notes: extendedNotes,
+                    videoUrl: med.videoUrl,
                     branchId: patient.branchId,
                     lowStockThreshold: med.lowStockThreshold || 5,
                 }

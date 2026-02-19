@@ -18,7 +18,8 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000
 
 interface BlockedSlot {
     id: string;
-    doctorId: string;
+    doctorId: string | null;
+    therapistId: string | null;
     date?: string;
     dayOfWeek?: number;
     startTime: string;
@@ -29,8 +30,8 @@ interface BlockedSlot {
 export default function DoctorAvailability() {
     const { role, profile } = useAuth();
     const [loading, setLoading] = useState(false);
-    const [doctors, setDoctors] = useState<any[]>([]);
-    const [selectedDoctorId, setSelectedDoctorId] = useState<string>("");
+    const [clinicians, setClinicians] = useState<any[]>([]);
+    const [selectedClinicianId, setSelectedClinicianId] = useState<string>("");
     const [blockedSlots, setBlockedSlots] = useState<BlockedSlot[]>([]);
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
 
@@ -39,46 +40,51 @@ export default function DoctorAvailability() {
     const [startTime, setStartTime] = useState("09:00");
     const [endTime, setEndTime] = useState("17:00");
     const [reason, setReason] = useState("");
-    const [recurringDay, setRecurringDay] = useState<string>("0");
+    const [recurringDay, setRecurringDay] = useState<string>("1");
 
     useEffect(() => {
-        fetchDoctors();
-    }, []);
-
-    useEffect(() => {
-        if (role === 'DOCTOR' && profile?.doctor?.id) {
-            setSelectedDoctorId(profile.doctor.id);
+        if (role === 'ADMIN' || role === 'ADMIN_DOCTOR') {
+            fetchClinicians();
+        } else if (role === 'DOCTOR' && profile?.doctor?.id) {
+            setSelectedClinicianId(profile.doctor.id);
+        } else if (role === 'THERAPIST' && profile?.therapist?.id) {
+            setSelectedClinicianId(profile.therapist.id);
         }
     }, [role, profile]);
 
     useEffect(() => {
-        if (selectedDoctorId) {
-            fetchBlockedSlots(selectedDoctorId);
+        if (selectedClinicianId) {
+            fetchBlockedSlots(selectedClinicianId);
         }
-    }, [selectedDoctorId]);
+    }, [selectedClinicianId]);
 
-    const fetchDoctors = async () => {
+    const fetchClinicians = async () => {
         try {
-            const res = await fetch(`${API_BASE_URL}/api/user/list-doctors`, {
-                headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setDoctors(data);
-                // If admin and no doctor selected, select first
-                if ((role === 'ADMIN' || role === 'ADMIN_DOCTOR') && !selectedDoctorId && data.length > 0) {
-                    // Don't auto-select to avoid confusion, let user select
-                }
-            }
+            const [docsRes, thersRes] = await Promise.all([
+                fetch(`${API_BASE_URL}/api/user/list-doctors`, {
+                    headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+                }),
+                fetch(`${API_BASE_URL}/api/user/list-therapists`, {
+                    headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+                })
+            ]);
+
+            const docs = docsRes.ok ? await docsRes.json() : [];
+            const thers = thersRes.ok ? await thersRes.json() : [];
+
+            setClinicians([
+                ...docs.map((d: any) => ({ ...d, type: 'Doctor' })),
+                ...thers.map((t: any) => ({ ...t, type: 'Therapist' }))
+            ]);
         } catch (error) {
-            console.error("Failed to fetch doctors", error);
+            console.error("Failed to fetch clinicians", error);
         }
     };
 
-    const fetchBlockedSlots = async (docId: string) => {
+    const fetchBlockedSlots = async (clinicianId: string) => {
         setLoading(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/api/availability/${docId}`, {
+            const res = await fetch(`${API_BASE_URL}/api/availability/${clinicianId}`, {
                 headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
             });
             if (res.ok) {
@@ -92,17 +98,31 @@ export default function DoctorAvailability() {
     };
 
     const handleBlock = async () => {
-        if (!selectedDoctorId) {
-            toast.error("Please select a doctor");
+        if (!selectedClinicianId) {
+            toast.error("Please select a professional");
             return;
         }
 
+        const isAdmin = ['ADMIN', 'ADMIN_DOCTOR'].includes(role || '');
         const payload: any = {
-            doctorId: selectedDoctorId,
             startTime,
             endTime,
             reason
         };
+
+        // Determine if we are blocking for a doctor or therapist
+        if (role === 'DOCTOR') {
+            payload.doctorId = selectedClinicianId;
+        } else if (role === 'THERAPIST') {
+            payload.therapistId = selectedClinicianId;
+        } else if (isAdmin) {
+            const clinician = clinicians.find(c => c.id === selectedClinicianId);
+            if (clinician?.user?.role === 'THERAPIST' || clinician?.type === 'Therapist') {
+                payload.therapistId = selectedClinicianId;
+            } else {
+                payload.doctorId = selectedClinicianId;
+            }
+        }
 
         if (activeTab === 'single') {
             if (!selectedDate) {
@@ -124,20 +144,24 @@ export default function DoctorAvailability() {
                 body: JSON.stringify(payload)
             });
 
+            const data = await res.json();
+
             if (res.ok) {
                 toast.success("Availability blocked successfully");
-                fetchBlockedSlots(selectedDoctorId);
+                fetchBlockedSlots(selectedClinicianId);
                 setReason("");
             } else {
-                const err = await res.json();
-                toast.error(err.message || "Failed to block slot");
+                toast.error(data.message || data.error || "Failed to block slot");
             }
         } catch (error) {
             toast.error("Failed to save block");
+        } finally {
+            setLoading(false);
         }
     };
 
     const handleDelete = async (id: string) => {
+        setLoading(true);
         try {
             const res = await fetch(`${API_BASE_URL}/api/availability/block/${id}`, {
                 method: "DELETE",
@@ -146,9 +170,14 @@ export default function DoctorAvailability() {
             if (res.ok) {
                 toast.success("Block removed");
                 setBlockedSlots(prev => prev.filter(b => b.id !== id));
+            } else {
+                const err = await res.json();
+                toast.error(err.message || "Failed to remove block");
             }
         } catch (error) {
             toast.error("Failed to remove block");
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -158,8 +187,8 @@ export default function DoctorAvailability() {
         <AppLayout>
             <div className="container max-w-6xl mx-auto px-4 py-8 space-y-8">
                 <PageHeader
-                    title="Doctor Availability"
-                    subtitle="Manage blocked dates and time slots"
+                    title="Availability Management"
+                    subtitle="Manage blocked dates and time slots for Doctors & Therapists"
                 />
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -172,14 +201,16 @@ export default function DoctorAvailability() {
                         <CardContent className="space-y-6">
                             {(role === 'ADMIN' || role === 'ADMIN_DOCTOR') && (
                                 <div className="space-y-2">
-                                    <Label>Select Doctor</Label>
-                                    <Select value={selectedDoctorId} onValueChange={setSelectedDoctorId}>
+                                    <Label>Select Professional</Label>
+                                    <Select value={selectedClinicianId} onValueChange={setSelectedClinicianId}>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Choose doctor..." />
+                                            <SelectValue placeholder="Choose professional..." />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {doctors.map(d => (
-                                                <SelectItem key={d.id} value={d.id}>{d.fullName || d.user?.email}</SelectItem>
+                                            {clinicians.map(c => (
+                                                <SelectItem key={c.id} value={c.id}>
+                                                    {c.fullName || c.user?.email} ({c.type})
+                                                </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
@@ -243,7 +274,7 @@ export default function DoctorAvailability() {
                                 />
                             </div>
 
-                            <Button className="w-full gap-2" onClick={handleBlock} disabled={!selectedDoctorId || loading}>
+                            <Button className="w-full gap-2" onClick={handleBlock} disabled={!selectedClinicianId || loading}>
                                 <CalendarX className="w-4 h-4" />
                                 Block Time
                             </Button>
@@ -255,9 +286,9 @@ export default function DoctorAvailability() {
                         <CardHeader>
                             <CardTitle>Blocked Slots</CardTitle>
                             <CardDescription>
-                                {selectedDoctorId
-                                    ? `Managing availability for ${doctors.find(d => d.id === selectedDoctorId)?.fullName || 'Selected Doctor'}`
-                                    : 'Select a doctor to view blocks'}
+                                {selectedClinicianId
+                                    ? `Managing availability for ${clinicians.find(c => c.id === selectedClinicianId)?.fullName || profile?.fullName || 'Current Account'}`
+                                    : 'Select a professional to view blocks'}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>

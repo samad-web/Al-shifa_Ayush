@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma.js';
 import csvParser from 'csv-parser';
 import { createReadStream } from 'fs';
 import { unlink } from 'fs/promises';
-
-const prisma = new PrismaClient();
 
 export class BulkService {
     static async parseCSV(filepath) {

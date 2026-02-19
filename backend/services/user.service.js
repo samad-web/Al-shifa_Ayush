@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma.js';
 import bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient();
 
 export class UserService {
     static async listTherapists() {
@@ -75,10 +74,15 @@ export class UserService {
         return stats.sort((a, b) => b.excellenceScore - a.excellenceScore || b.appointmentCount - a.appointmentCount);
     }
 
-    static async listDoctors() {
+    static async listDoctors(branchId = null) {
+        const where = { user: { deletedAt: null } };
+        if (branchId) {
+            where.user.branchId = branchId;
+        }
+
         const doctors = await prisma.doctor.findMany({
-            where: { user: { deletedAt: null } },
-            include: { user: true }
+            where,
+            include: { user: { include: { branch: true } }, _count: { select: { appointments: true } } }
         });
         return doctors.map((doc) => ({
             id: doc.id,
@@ -89,6 +93,9 @@ export class UserService {
             qualification: doc.qualification,
             clinic: doc.clinic,
             email: doc.user?.email,
+            branchId: doc.user?.branchId,
+            branchName: doc.user?.branch?.name,
+            appointmentCount: doc._count?.appointments || 0,
         }));
     }
 
@@ -218,12 +225,46 @@ export class UserService {
     static async assignPatient(data) {
         const { patientId, doctorId } = data;
         const [patient, doctor] = await Promise.all([
-            prisma.patient.findUnique({ where: { id: patientId } }),
-            prisma.doctor.findUnique({ where: { id: doctorId } })
+            prisma.patient.findUnique({ where: { id: patientId }, include: { user: true } }),
+            prisma.doctor.findUnique({ where: { id: doctorId }, include: { user: true } })
         ]);
+
         if (!patient || !doctor) throw new Error('Patient or Doctor not found');
+
+        // Branch Parity Check
+        if (patient.branchId && doctor.user?.branchId && patient.branchId !== doctor.user.branchId) {
+            throw new Error('Cross-branch assignment is restricted to administrators');
+        }
+
+        // Real-time Availability Check
+        const { AvailabilityService } = await import('./availability.service.js');
+        const now = new Date();
+        const startTime = now.toTimeString().slice(0, 5);
+        const endTime = new Date(now.getTime() + 60 * 60 * 1000).toTimeString().slice(0, 5);
+
+        const availability = await AvailabilityService.checkAvailability(
+            doctorId,
+            now.toISOString(),
+            startTime,
+            endTime
+        );
+
+        if (!availability.available) {
+            const availableSlots = await AvailabilityService.getAvailableSlots(doctorId, now);
+            const error = new Error(`Doctor is currently unavailable: ${availability.reason}`);
+            error.status = 403;
+            error.availableSlots = availableSlots;
+            throw error;
+        }
+
         return prisma.appointment.create({
-            data: { patientId: patient.id, doctorId: doctor.id, date: new Date(), status: 'ASSIGNED' },
+            data: {
+                patientId: patient.id,
+                doctorId: doctor.id,
+                date: now,
+                status: 'ASSIGNED',
+                branchId: patient.branchId
+            },
         });
     }
 
@@ -237,6 +278,7 @@ export class UserService {
                 user: true,
                 branch: true,
                 appointments: { include: { doctor: { include: { user: true } }, therapist: { include: { user: true } } } },
+                triageSessions: { orderBy: { createdAt: 'desc' }, take: 1 } // Fetch latest triage session
             },
         });
         if (!patient) throw new Error('Patient not found');

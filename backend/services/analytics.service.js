@@ -1,6 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma.js';
 
-const prisma = new PrismaClient();
 
 /**
  * Analytics service for data aggregation and reporting
@@ -290,6 +289,9 @@ class AnalyticsService {
 
         if (!patient) throw new Error('Patient not found');
 
+        // Fetch medication adherence for the last 30 days
+        const adherence = await this.getMedicationAdherence(patientId, 30);
+
         const totalSittings = patient.appointments.length;
         const currentCheckIn = patient.dailyCheckIns[0] || null;
         const historicalCheckIns = patient.dailyCheckIns.slice(1);
@@ -324,6 +326,7 @@ class AnalyticsService {
             painImprovement: calculateChange(prevMetrics.avgPain, currentMetrics.pain, true),
             mobilityImprovement: calculateChange(prevMetrics.avgMobility, currentMetrics.mobility),
             sleepImprovement: calculateChange(prevMetrics.avgSleep, currentMetrics.sleep),
+            adherenceRate: adherence.overallRate
         };
 
         return {
@@ -343,6 +346,7 @@ class AnalyticsService {
                 metrics: currentMetrics,
                 notes: currentCheckIn?.notes || ''
             },
+            adherence,
             progressAnalysis: {
                 metrics: [
                     { label: 'Pain Level', change: analysis.painImprovement, current: currentMetrics.pain, previous: prevMetrics.avgPain },
@@ -362,9 +366,148 @@ class AnalyticsService {
         if (analysis.mobilityImprovement > 5) trends.push("significant improvement in mobility");
         if (analysis.sleepImprovement > 5) trends.push("better sleep patterns observed");
 
-        if (trends.length === 0) return "Patient state is stable with no major changes in tracked metrics.";
-        return `The patient is showing a ${trends.join(' and ')}. Overall progress is positive.`;
+        let summary = trends.length === 0
+            ? "Patient state is stable with no major changes in tracked metrics."
+            : `The patient is showing a ${trends.join(' and ')}. Overall progress is positive.`;
+
+        if (analysis.adherenceRate < 70) {
+            summary += ` However, medication adherence is low (${analysis.adherenceRate}%), which may be affecting results.`;
+        } else if (analysis.adherenceRate >= 90) {
+            summary += ` Excellent medication adherence (${analysis.adherenceRate}%) is contributing to the recovery.`;
+        }
+
+        return summary;
+    }
+
+    /**
+     * Get completed appointments for the current month with pagination and trends
+     * @param {Object} filters - Role, branch, and pagination options
+     */
+    async getMonthlyCompletedAppointments(filters = {}) {
+        const { role, userId, branchId, page = 1, limit = 10 } = filters;
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+        const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const endOfPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+        const where = {
+            status: 'COMPLETED',
+            date: {
+                gte: startOfMonth,
+                lte: endOfMonth
+            }
+        };
+
+        // Role-based filtering
+        if (role === 'DOCTOR' || role === 'ADMIN_DOCTOR') {
+            const doctor = await prisma.doctor.findUnique({ where: { userId } });
+            if (doctor) where.doctorId = doctor.id;
+        } else if (role === 'THERAPIST') {
+            const therapist = await prisma.therapist.findUnique({ where: { userId } });
+            if (therapist) where.therapistId = therapist.id;
+        }
+
+        // Branch filtering
+        if (branchId && role !== 'ADMIN' && role !== 'ADMIN_DOCTOR') {
+            where.branchId = branchId;
+        }
+
+        const [total, appointments] = await Promise.all([
+            prisma.appointment.count({ where }),
+            prisma.appointment.findMany({
+                where,
+                include: {
+                    patient: true,
+                    doctor: true,
+                    therapist: true,
+                    branch: true,
+                },
+                orderBy: { date: 'desc' },
+                skip: (page - 1) * limit,
+                take: parseInt(limit),
+            })
+        ]);
+
+        // Previous month stats for trend comparison
+        const prevMonthWhere = { ...where, date: { gte: startOfPrevMonth, lte: endOfPrevMonth } };
+        const prevMonthTotal = await prisma.appointment.count({ where: prevMonthWhere });
+
+        let trend = 0;
+        if (prevMonthTotal > 0) {
+            trend = Math.round(((total - prevMonthTotal) / prevMonthTotal) * 100);
+        } else if (total > 0) {
+            trend = 100;
+        }
+
+        return {
+            data: appointments.map(apt => ({
+                id: apt.id,
+                date: apt.date,
+                patientName: apt.patient.fullName,
+                doctorName: apt.doctor?.fullName || apt.therapist?.fullName || 'N/A',
+                branchName: apt.branch?.name || 'Main',
+                status: apt.status,
+                sessionNotes: apt.sessionNotes || apt.notes
+            })),
+            meta: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(total / limit),
+                trend,
+                prevMonthTotal
+            }
+        };
+    }
+
+    /**
+     * Get medication adherence analytics for a specific patient
+     */
+    async getMedicationAdherence(patientId, days = 30) {
+        const now = new Date();
+        const startDate = new Date(now.getTime() - (days * 24 * 60 * 60 * 1000));
+
+        const logs = await prisma.medicationLog.findMany({
+            where: {
+                prescription: { patientId },
+                date: { gte: startDate }
+            },
+            include: {
+                prescription: true
+            }
+        });
+
+        // Group by day for trend analysis
+        const dailyTrendArr = {};
+        logs.forEach(log => {
+            const dateStr = log.date.toISOString().split('T')[0];
+            if (!dailyTrendArr[dateStr]) {
+                dailyTrendArr[dateStr] = { total: 0, taken: 0 };
+            }
+            dailyTrendArr[dateStr].total++;
+            if (log.taken) dailyTrendArr[dateStr].taken++;
+        });
+
+        const trendData = Object.entries(dailyTrendArr).map(([date, data]) => ({
+            date,
+            adherenceRate: Math.round((data.taken / data.total) * 100)
+        })).sort((a, b) => a.date.localeCompare(b.date));
+
+        const totalExpected = logs.length;
+        const totalTaken = logs.filter(l => l.taken).length;
+        const overallRate = totalExpected > 0 ? Math.round((totalTaken / totalExpected) * 100) : 100;
+
+        return {
+            patientId,
+            overallRate,
+            totalExpected,
+            totalTaken,
+            trendData
+        };
     }
 }
+
 
 export const analyticsService = new AnalyticsService();

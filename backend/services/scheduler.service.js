@@ -1,8 +1,6 @@
 import cron from 'node-cron';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma.js';
 import { notificationService } from './notification.service.js';
-
-const prisma = new PrismaClient();
 
 /**
  * Scheduler service for automated tasks

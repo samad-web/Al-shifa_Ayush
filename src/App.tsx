@@ -279,7 +279,7 @@ function AppRoutes() {
       <Route
         path="/doctor-availability"
         element={
-          <ProtectedRoute allowedRoles={["ADMIN", "ADMIN_DOCTOR", "DOCTOR"]}>
+          <ProtectedRoute allowedRoles={["ADMIN", "ADMIN_DOCTOR", "DOCTOR", "THERAPIST"]}>
             <DoctorAvailability />
           </ProtectedRoute>
         }

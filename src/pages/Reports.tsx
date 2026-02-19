@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Download, FileText, BarChart3, TrendingUp, Users } from 'lucide-react';
+import { Download, FileText, BarChart3, TrendingUp, Users, CalendarCheck } from 'lucide-react';
 import { Navigation } from '@/components/layout/navigation';
+import { MonthlyCompletedAppointments } from '@/components/MonthlyCompletedAppointments';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -75,20 +76,27 @@ export default function Reports() {
 
             <TabsContent value="appointments" className="space-y-4">
               <Card className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold">Appointment Analytics</h2>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-primary/10 rounded-2xl">
+                      <CalendarCheck className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold">Monthly Completed Appointments</h2>
+                      <p className="text-sm text-muted-foreground">Detailed breakdown of all completed sessions this month</p>
+                    </div>
+                  </div>
                   <Button
                     onClick={() => handleExport('appointments', 'csv')}
                     disabled={loading}
+                    className="gap-2"
                   >
-                    <Download className="h-4 w-4 mr-2" />
+                    <Download className="h-4 w-4" />
                     Export CSV
                   </Button>
                 </div>
-                <div className="text-center py-12 text-muted-foreground">
-                  <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                  <p>Appointment analytics visualization coming soon</p>
-                </div>
+
+                <MonthlyCompletedAppointments />
               </Card>
             </TabsContent>
 

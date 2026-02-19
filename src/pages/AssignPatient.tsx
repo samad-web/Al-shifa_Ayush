@@ -28,6 +28,8 @@ export default function AssignPatient() {
   const [assigning, setAssigning] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [doctorsLoading, setDoctorsLoading] = useState(false);
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -39,20 +41,22 @@ export default function AssignPatient() {
 
       const headers = { Authorization: `Bearer ${token}` };
 
-      const [doctorsRes, patientsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/user/list-doctors`, { headers }),
-        fetch(`${API_BASE_URL}/api/user/list-patients`, { headers })
-      ]);
+      const patientsRes = await fetch(`${API_BASE_URL}/api/user/list-patients`, { headers });
 
-      if (!doctorsRes.ok || !patientsRes.ok) {
-        throw new Error("Failed to fetch data");
+      if (!patientsRes.ok) {
+        throw new Error("Failed to fetch patients");
       }
 
-      const doctorsData = await doctorsRes.json();
       const patientsData = await patientsRes.json();
-
-      setDoctors(doctorsData);
       setPatients(patientsData);
+
+      // If we already have a patient ID, fetch doctors for that branch
+      if (patientId) {
+        const patient = patientsData.find((p: any) => p.id === patientId);
+        if (patient?.branchId) {
+          fetchDoctors(patient.branchId);
+        }
+      }
     } catch (err: any) {
       console.error("Error fetching assignment data:", err);
       setError(err.message || "Failed to load data");
@@ -60,7 +64,37 @@ export default function AssignPatient() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, patientId]);
+
+  const fetchDoctors = async (branchId: string) => {
+    setDoctorsLoading(true);
+    setAvailableSlots([]);
+    try {
+      const token = localStorage.getItem("accessToken");
+      const res = await fetch(`${API_BASE_URL}/api/user/list-doctors?branchId=${branchId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDoctors(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch doctors:", err);
+    } finally {
+      setDoctorsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (patientId) {
+      const patient = patients.find((p: any) => p.id === patientId);
+      if (patient?.branchId) {
+        fetchDoctors(patient.branchId);
+      }
+    } else {
+      setDoctors([]);
+    }
+  }, [patientId, patients]);
 
   useEffect(() => {
     if (role === "ADMIN" || role === "ADMIN_DOCTOR") {
@@ -98,7 +132,10 @@ export default function AssignPatient() {
       console.log("[AssignPatient] Response data:", data);
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to assign patient");
+        if (data.availableSlots) {
+          setAvailableSlots(data.availableSlots);
+        }
+        throw new Error(data.message || data.error || "Failed to assign patient");
       }
 
       setSuccess("Patient assigned successfully!");
@@ -107,6 +144,7 @@ export default function AssignPatient() {
       // Clear selection
       setDoctorId("");
       setPatientId("");
+      setAvailableSlots([]);
 
       // Delay refresh to allow success message to be seen and avoid immediate unmount/remount race conditions
       // Also, we don't want to flash the full page loader just for a refresh.
@@ -120,14 +158,9 @@ export default function AssignPatient() {
       const refreshData = async () => {
         try {
           const headers = { Authorization: `Bearer ${token}` };
-          const [doctorsRes, patientsRes] = await Promise.all([
-            fetch(`${API_BASE_URL}/api/user/list-doctors`, { headers }),
-            fetch(`${API_BASE_URL}/api/user/list-patients`, { headers })
-          ]);
-          if (doctorsRes.ok && patientsRes.ok) {
-            const d = await doctorsRes.json();
+          const patientsRes = await fetch(`${API_BASE_URL}/api/user/list-patients`, { headers });
+          if (patientsRes.ok) {
             const p = await patientsRes.json();
-            if (Array.isArray(d)) setDoctors(d);
             if (Array.isArray(p)) setPatients(p);
           }
         } catch (refreshErr) {
@@ -140,7 +173,11 @@ export default function AssignPatient() {
     } catch (err: any) {
       console.error("[AssignPatient] Assignment error:", err);
       setError(err.message || "An unexpected error occurred");
-      toast({ title: "Assignment failed", description: err.message || "Could not assign patient", variant: "destructive" });
+      toast({
+        title: "Assignment failed",
+        description: err.message || "Could not assign patient",
+        variant: "destructive"
+      });
     } finally {
       setAssigning(false);
     }
@@ -288,14 +325,14 @@ export default function AssignPatient() {
                     <Label htmlFor="doctor" className="text-sm font-black uppercase tracking-widest text-muted-foreground">
                       Provider Selection
                     </Label>
-                    <Select value={doctorId} onValueChange={setDoctorId} disabled={noDoctors} required>
+                    <Select value={doctorId} onValueChange={setDoctorId} disabled={noDoctors || doctorsLoading} required>
                       <SelectTrigger id="doctor" className="h-12 bg-secondary/30 border-secondary focus:bg-background transition-all rounded-xl">
-                        <SelectValue placeholder={noDoctors ? "No doctors available" : "Select from active staff..."} />
+                        <SelectValue placeholder={doctorsLoading ? "Filtering active staff..." : noDoctors ? (patientId ? "No doctors available in this branch" : "Select patient first") : "Select clinician..."} />
                       </SelectTrigger>
                       <SelectContent>
                         {doctors.map((d: any) => (
                           <SelectItem key={d.id} value={d.id}>
-                            {getDoctorLabel(d)}{getDoctorSub(d)}
+                            {getDoctorLabel(d)}{getDoctorSub(d)} {d.branchName ? `— ${d.branchName}` : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -313,6 +350,7 @@ export default function AssignPatient() {
                         placeholder={noPatients ? "No records found" : "Search by name, phone, or ID..."}
                         value={search}
                         onChange={e => setSearch(e.target.value)}
+                        onFocus={() => { setAvailableSlots([]); setError(""); }}
                         disabled={noPatients}
                         className="h-12 bg-secondary/30 border-secondary focus:bg-background transition-all rounded-xl"
                       />
@@ -324,8 +362,12 @@ export default function AssignPatient() {
                         <SelectContent>
                           {filteredPatients.map((p: any) => (
                             <SelectItem key={p.id} value={p.id}>
-                              {p.fullName || p.user?.email || p.id}
-                              {p.phoneNumber ? ` — ${p.phoneNumber}` : ""}
+                              <div className="flex flex-col">
+                                <span className="font-bold">{p.fullName || p.user?.email || p.id}</span>
+                                <span className="text-[10px] opacity-70 uppercase font-black">
+                                  {p.branch?.name || "Global Branch"} {p.phoneNumber ? ` • ${p.phoneNumber}` : ""}
+                                </span>
+                              </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -334,11 +376,27 @@ export default function AssignPatient() {
                   </div>
 
                   {/* Status Messages */}
-                  <div className="min-h-[20px]">
+                  <div className="min-h-[20px] space-y-4">
                     {error && (
-                      <div className="flex items-center gap-2 text-attention text-sm font-bold animate-shake bg-attention/10 p-3 rounded-lg border border-attention/20">
-                        <AlertCircle className="w-4 h-4" />
-                        {error}
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2 text-attention text-sm font-bold animate-shake bg-attention/10 p-3 rounded-lg border border-attention/20">
+                          <AlertCircle className="w-4 h-4" />
+                          {error}
+                        </div>
+                        {availableSlots.length > 0 && (
+                          <div className="p-4 rounded-xl bg-wellness/5 border border-wellness/20">
+                            <p className="text-xs font-black uppercase tracking-widest text-wellness mb-3">
+                              Suggested Available Slots Today:
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {availableSlots.map((slot, i) => (
+                                <span key={i} className="px-3 py-1 bg-wellness/10 text-wellness text-[10px] font-bold rounded-full">
+                                  {slot}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                     {success && (

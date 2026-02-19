@@ -37,12 +37,17 @@ export function AppointmentModal({
     const [selectedDate, setSelectedDate] = useState<Date | undefined>();
     const [selectedHour, setSelectedHour] = useState<string>("09");
     const [selectedMinute, setSelectedMinute] = useState<string>("00");
+    const [therapistDate, setTherapistDate] = useState<Date | undefined>();
+    const [therapistHour, setTherapistHour] = useState<string>("09");
+    const [therapistMinute, setTherapistMinute] = useState<string>("00");
     const [formData, setFormData] = useState({
         patientId: patientId || appointment?.patientId || "",
         doctorId: appointment?.doctorId || "",
         therapistId: appointment?.therapistId || "",
         status: appointment?.status || "SCHEDULED",
         notes: appointment?.notes || "",
+        consultationType: appointment?.consultationType || "DOCTOR",
+        consultationMode: appointment?.consultationMode || "OFFLINE",
     });
     const [triageSessionId, setTriageSessionId] = useState<string | null>(null);
     const [triageResult, setTriageResult] = useState<any>(null);
@@ -62,28 +67,78 @@ export function AppointmentModal({
     const currentUserPatientId = role === 'PATIENT' && profile?.patient ? profile.patient.id : null;
     console.log('[AppointmentModal] currentUserPatientId:', currentUserPatientId); // Debug log
 
-    // Initialize date and time safely
+    // Initialize and Reset state safely when modal opens or appointment changes
     useEffect(() => {
-        console.log('[AppointmentModal] useEffect triggered. isOpen:', isOpen, 'role:', role, 'isAdmin:', isAdmin, 'isEditing:', isEditing);
-        if (isOpen && !isAdmin && role === 'PATIENT' && !isEditing) {
-            console.log('[AppointmentModal] Triggering triage flow');
-            setShowTriage(true);
-        } else if (!isOpen) {
+        if (!isOpen) {
+            console.log('[AppointmentModal] Modal closed - clearing states');
+            setTriageSessionId(null);
+            setTriageResult(null);
             setShowTriage(false);
+            setContactDetails({ fullName: "", phoneNumber: "", email: "" });
+            return;
         }
 
-        if (appointment?.date) {
+        console.log(`[AppointmentModal] Initializing state. Context: ${isEditing ? 'EDIT' : 'NEW'}`);
+
+        // 1. Reset/Initialize form data
+        setFormData({
+            patientId: patientId || appointment?.patientId || currentUserPatientId || "",
+            doctorId: appointment?.doctorId || "",
+            therapistId: appointment?.therapistId || "",
+            status: appointment?.status || "SCHEDULED",
+            notes: appointment?.notes || "",
+            consultationType: appointment?.consultationType || "DOCTOR",
+            consultationMode: appointment?.consultationMode || "OFFLINE",
+        });
+
+        // 2. Reset/Initialize Contact Details and Triage
+        setContactDetails({
+            fullName: appointment?.patient?.fullName || appointment?.contactDetails?.fullName || "",
+            phoneNumber: appointment?.patient?.phoneNumber || appointment?.contactDetails?.phoneNumber || "",
+            email: appointment?.patient?.email || appointment?.contactDetails?.email || "",
+        });
+        setTriageSessionId(appointment?.triageSessionId || null);
+        setTriageResult(null); // Fresh start for results
+
+        // 3. Reset/Initialize Dates and Times
+        if (isEditing && appointment?.date) {
             const aptDate = new Date(appointment.date);
             setSelectedDate(aptDate);
             setSelectedHour(String(aptDate.getHours()).padStart(2, "0"));
             setSelectedMinute(String(aptDate.getMinutes()).padStart(2, "0"));
+        } else {
+            setSelectedDate(undefined);
+            setSelectedHour("09");
+            setSelectedMinute("00");
         }
 
-        // Set patient ID for patient users
-        if (currentUserPatientId && !isAdmin && !formData.patientId) {
-            setFormData(prev => ({ ...prev, patientId: currentUserPatientId }));
+        if (isEditing && appointment?.therapistDate) {
+            const tAptDate = new Date(appointment.therapistDate);
+            setTherapistDate(tAptDate);
+            setTherapistHour(String(tAptDate.getHours()).padStart(2, "0"));
+            setTherapistMinute(String(tAptDate.getMinutes()).padStart(2, "0"));
+        } else {
+            setTherapistDate(undefined);
+            setTherapistHour("09");
+            setTherapistMinute("00");
         }
-    }, [isOpen, isAdmin, role, isEditing, appointment, currentUserPatientId]);
+
+        // 4. Triage flow logic
+        if (!isAdmin && role === 'PATIENT' && !isEditing) {
+            console.log('[AppointmentModal] Triggering triage flow');
+            setShowTriage(true);
+        } else {
+            setShowTriage(false);
+        }
+
+        // 5. Audit Log
+        console.log('[AppointmentModal] State initialized. Notes length:', (appointment?.notes || "").length);
+
+        return () => {
+            console.log('[AppointmentModal] Component unmounting or context switching - cleanup');
+        };
+
+    }, [isOpen, appointment, patientId, currentUserPatientId, isAdmin, role, isEditing]);
 
     // Fetch available staff and patients (for admin)
     useEffect(() => {
@@ -149,10 +204,14 @@ Sleep: ${od.sleepBedtime || ''}-${od.sleepWakeTime || ''} (${od.sleepDuration}h)
 Pain Level: ${od.painLevel}/10
 Pain Locations: ${od.painLocations?.join(', ') || 'N/A'}`;
 
-                        setFormData(prev => ({
-                            ...prev,
-                            notes: prev.notes ? `${prev.notes}\n\n${onboardingSummary}` : onboardingSummary
-                        }));
+                        setFormData(prev => {
+                            // Prevent double-appending if context hasn't changed
+                            if (prev.notes.includes("[Baseline Info]")) return prev;
+                            return {
+                                ...prev,
+                                notes: prev.notes ? `${prev.notes}\n\n${onboardingSummary}` : onboardingSummary
+                            };
+                        });
                     }
                 }
             } catch (error) {
@@ -198,17 +257,36 @@ Pain Locations: ${od.painLocations?.join(', ') || 'N/A'}`;
             return;
         }
 
-        if (!formData.doctorId) {
+        if (formData.consultationType !== "THERAPIST" && !formData.doctorId) {
             toast.error("Please select a doctor");
             setLoading(false);
             return;
         }
 
+        if (formData.consultationType !== "DOCTOR" && !formData.therapistId) {
+            toast.error("Please select a therapist");
+            setLoading(false);
+            return;
+        }
+
         try {
-            // Combine date and time
+            // Combine doctor date and time
             const combinedDateTime = new Date(selectedDate);
             combinedDateTime.setHours(parseInt(selectedHour));
             combinedDateTime.setMinutes(parseInt(selectedMinute));
+
+            // Combine therapist date and time
+            let combinedTherapistDateTime = null;
+            if (formData.consultationType === "COMBINED" && therapistDate) {
+                combinedTherapistDateTime = new Date(therapistDate);
+                combinedTherapistDateTime.setHours(parseInt(therapistHour));
+                combinedTherapistDateTime.setMinutes(parseInt(therapistMinute));
+            } else if (formData.consultationType === "THERAPIST" && selectedDate) {
+                // If only therapist, use the primary date selection
+                combinedTherapistDateTime = new Date(selectedDate);
+                combinedTherapistDateTime.setHours(parseInt(selectedHour));
+                combinedTherapistDateTime.setMinutes(parseInt(selectedMinute));
+            }
 
             const url = isEditing
                 ? `${API_BASE_URL}/api/appointments/${appointment.id}`
@@ -232,6 +310,7 @@ Pain Locations: ${od.painLocations?.join(', ') || 'N/A'}`;
                 body: JSON.stringify({
                     ...formData,
                     date: combinedDateTime.toISOString(),
+                    therapistDate: combinedTherapistDateTime?.toISOString() || null,
                     contactDetails,
                     triageSessionId: triageSessionId
                 }),
@@ -248,6 +327,8 @@ Pain Locations: ${od.painLocations?.join(', ') || 'N/A'}`;
                     therapistId: "",
                     status: "SCHEDULED",
                     notes: "",
+                    consultationType: "DOCTOR",
+                    consultationMode: "OFFLINE",
                 });
                 setContactDetails({
                     fullName: "",
@@ -391,118 +472,233 @@ Pain Locations: ${od.painLocations?.join(', ') || 'N/A'}`;
                             </div>
                         </div>
 
-                        {/* Doctor/Therapist Selection */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Doctor */}
+                        {/* Consultation Configuration */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-primary/5 rounded-lg border border-primary/10">
+                            {/* Consultation Type */}
                             <div className="space-y-2">
-                                <Label htmlFor="doctor">Doctor *</Label>
+                                <Label htmlFor="consultationType">Consultation Type *</Label>
                                 <Select
-                                    value={formData.doctorId}
-                                    onValueChange={(value) => setFormData({ ...formData, doctorId: value })}
-                                    required
+                                    value={formData.consultationType}
+                                    onValueChange={(value) => setFormData({ ...formData, consultationType: value })}
                                 >
                                     <SelectTrigger className="bg-background">
-                                        <SelectValue placeholder="Select doctor..." />
+                                        <SelectValue placeholder="Select type..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {filteredDoctors.map((doctor) => (
-                                            <SelectItem key={doctor?.id || 'unknown'} value={doctor?.id || ''}>
-                                                {doctor?.fullName || doctor?.user?.email || `Doctor-${doctor?.id?.slice(0, 8) || 'unknown'}`}
-                                                {doctor?.user?.role === 'ADMIN_DOCTOR' && " (Admin Clinic)"}
-                                            </SelectItem>
-                                        ))}
+                                        <SelectItem value="DOCTOR">Doctor Only</SelectItem>
+                                        <SelectItem value="THERAPIST">Therapist Only</SelectItem>
+                                        <SelectItem value="COMBINED">Combined (Doctor + Therapist)</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
 
-                            {/* Therapist (Optional) */}
+                            {/* Consultation Mode */}
                             <div className="space-y-2">
-                                <Label htmlFor="therapist">Therapist (Optional)</Label>
+                                <Label htmlFor="consultationMode">Visit Mode *</Label>
                                 <Select
-                                    value={formData.therapistId || "_none_"}
-                                    onValueChange={(value) =>
-                                        setFormData({ ...formData, therapistId: value === "_none_" ? "" : value })
-                                    }
+                                    value={formData.consultationMode}
+                                    onValueChange={(value) => setFormData({ ...formData, consultationMode: value })}
                                 >
                                     <SelectTrigger className="bg-background">
-                                        <SelectValue placeholder="Select therapist..." />
+                                        <SelectValue placeholder="Select mode..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="_none_">None</SelectItem>
-                                        {Array.isArray(therapists) && therapists.map((therapist) => (
-                                            <SelectItem key={therapist.id} value={therapist.id}>
-                                                {therapist.fullName || therapist.user?.email || `Therapist-${therapist.id.slice(0, 8)}`}
-                                            </SelectItem>
-                                        ))}
+                                        <SelectItem value="OFFLINE">In-Person (Clinic)</SelectItem>
+                                        <SelectItem value="ONLINE">Online (Virtual)</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
                         </div>
 
-                        {/* Date and Time Selection */}
+                        {/* Doctor/Therapist Selection */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Date Selection */}
-                            <div className="space-y-2">
-                                <Label>Date *</Label>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            className={cn(
-                                                "w-full justify-start text-left font-normal bg-background",
-                                                !selectedDate && "text-muted-foreground"
-                                            )}
-                                        >
-                                            <CalendarIcon className="mr-2 h-4 w-4" />
-                                            {selectedDate ? format(selectedDate, "PPP") : "Select date"}
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                        <CalendarComponent
-                                            mode="single"
-                                            selected={selectedDate}
-                                            onSelect={setSelectedDate}
-                                            initialFocus
-                                            disabled={(date) =>
-                                                date < new Date(new Date().setHours(0, 0, 0, 0))
-                                            }
-                                        />
-                                    </PopoverContent>
-                                </Popover>
-                            </div>
-
-                            {/* Time Selection */}
-                            <div className="space-y-2">
-                                <Label>Time *</Label>
-                                <div className="flex gap-2">
-                                    <Select value={selectedHour} onValueChange={setSelectedHour}>
+                            {/* Doctor */}
+                            {(formData.consultationType === 'DOCTOR' || formData.consultationType === 'COMBINED') && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="doctor">Doctor *</Label>
+                                    <Select
+                                        value={formData.doctorId}
+                                        onValueChange={(value) => setFormData({ ...formData, doctorId: value })}
+                                        required
+                                    >
                                         <SelectTrigger className="bg-background">
-                                            <SelectValue />
+                                            <SelectValue placeholder="Select doctor..." />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {hours.map((hour) => (
-                                                <SelectItem key={hour} value={hour}>
-                                                    {hour}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <span className="flex items-center">:</span>
-                                    <Select value={selectedMinute} onValueChange={setSelectedMinute}>
-                                        <SelectTrigger className="bg-background">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {minutes.map((min) => (
-                                                <SelectItem key={min} value={min}>
-                                                    {min}
+                                            {filteredDoctors.map((doctor) => (
+                                                <SelectItem key={doctor?.id || 'unknown'} value={doctor?.id || ''}>
+                                                    {doctor?.fullName || doctor?.user?.email || `Doctor-${doctor?.id?.slice(0, 8) || 'unknown'}`}
+                                                    {doctor?.user?.role === 'ADMIN_DOCTOR' && " (Admin Clinic)"}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
+                            )}
+
+                            {/* Therapist */}
+                            {(formData.consultationType === 'THERAPIST' || formData.consultationType === 'COMBINED') && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="therapist">Therapist *</Label>
+                                    <Select
+                                        value={formData.therapistId}
+                                        onValueChange={(value) => setFormData({ ...formData, therapistId: value })}
+                                        required
+                                    >
+                                        <SelectTrigger className="bg-background">
+                                            <SelectValue placeholder="Select therapist..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {Array.isArray(therapists) && therapists.map((therapist) => (
+                                                <SelectItem key={therapist.id} value={therapist.id}>
+                                                    {therapist.fullName || therapist.user?.email || `Therapist-${therapist.id.slice(0, 8)}`}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Date and Time Selection */}
+                        <div className="space-y-6 pt-4 border-t border-primary/10">
+                            {/* Doctor/Primary Section */}
+                            <div className="space-y-4">
+                                <Label className="text-primary font-bold">
+                                    {formData.consultationType === 'COMBINED' ? '1. Doctor Appointment Timing' : 'Appointment Date and Time'}
+                                </Label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Date *</Label>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    className={cn(
+                                                        "w-full justify-start text-left font-normal bg-background",
+                                                        !selectedDate && "text-muted-foreground"
+                                                    )}
+                                                >
+                                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                                    {selectedDate ? format(selectedDate, "PPP") : "Select date"}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0" align="start">
+                                                <CalendarComponent
+                                                    mode="single"
+                                                    selected={selectedDate}
+                                                    onSelect={setSelectedDate}
+                                                    initialFocus
+                                                    disabled={(date) =>
+                                                        date < new Date(new Date().setHours(0, 0, 0, 0))
+                                                    }
+                                                />
+                                            </PopoverContent>
+                                        </Popover>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Time *</Label>
+                                        <div className="flex gap-2">
+                                            <Select value={selectedHour} onValueChange={setSelectedHour}>
+                                                <SelectTrigger className="bg-background">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {hours.map((hour) => (
+                                                        <SelectItem key={hour} value={hour}>
+                                                            {hour}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <span className="flex items-center">:</span>
+                                            <Select value={selectedMinute} onValueChange={setSelectedMinute}>
+                                                <SelectTrigger className="bg-background">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {minutes.map((min) => (
+                                                        <SelectItem key={min} value={min}>
+                                                            {min}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
+
+                            {/* Therapist Section (only for COMBINED) */}
+                            {formData.consultationType === 'COMBINED' && (
+                                <div className="space-y-4 pt-4 border-t border-dashed border-primary/20">
+                                    <Label className="text-primary font-bold">2. Therapist Appointment Timing</Label>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Date *</Label>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        className={cn(
+                                                            "w-full justify-start text-left font-normal bg-background",
+                                                            !therapistDate && "text-muted-foreground"
+                                                        )}
+                                                    >
+                                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                                        {therapistDate ? format(therapistDate, "PPP") : "Select date"}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start">
+                                                    <CalendarComponent
+                                                        mode="single"
+                                                        selected={therapistDate}
+                                                        onSelect={setTherapistDate}
+                                                        initialFocus
+                                                        disabled={(date) =>
+                                                            date < new Date(new Date().setHours(0, 0, 0, 0))
+                                                        }
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Time *</Label>
+                                            <div className="flex gap-2">
+                                                <Select value={therapistHour} onValueChange={setTherapistHour}>
+                                                    <SelectTrigger className="bg-background">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {hours.map((hour) => (
+                                                            <SelectItem key={hour} value={hour}>
+                                                                {hour}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <span className="flex items-center">:</span>
+                                                <Select value={therapistMinute} onValueChange={setTherapistMinute}>
+                                                    <SelectTrigger className="bg-background">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {minutes.map((min) => (
+                                                            <SelectItem key={min} value={min}>
+                                                                {min}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Status (Admin only) */}

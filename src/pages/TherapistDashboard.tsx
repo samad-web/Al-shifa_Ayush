@@ -104,6 +104,46 @@ export default function TherapistDashboard() {
         setShowModal(true);
     };
 
+    const handleApprove = async (appointmentId: string) => {
+        try {
+            const res = await fetch(`/api/appointments/${appointmentId}/approve`, {
+                method: "PUT",
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+                },
+            });
+            if (res.ok) {
+                toast.success("Appointment approved!");
+                fetchAppointments();
+            } else {
+                const error = await res.json();
+                toast.error(error.error || "Failed to approve");
+            }
+        } catch (error) {
+            toast.error("Failed to approve");
+        }
+    };
+
+    const handleReject = async (appointmentId: string) => {
+        if (!confirm("Reject this appointment?")) return;
+        try {
+            const res = await fetch(`/api/appointments/${appointmentId}/reject`, {
+                method: "PUT",
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+                },
+            });
+            if (res.ok) {
+                toast.success("Appointment rejected");
+                fetchAppointments();
+            } else {
+                toast.error("Failed to reject");
+            }
+        } catch (error) {
+            toast.error("Failed to reject");
+        }
+    };
+
     return (
         <AppLayout>
             <div className="container max-w-7xl mx-auto px-4 py-8 md:py-12 space-y-10">
@@ -204,6 +244,8 @@ export default function TherapistDashboard() {
                                 <AppointmentList
                                     appointments={appointments}
                                     onEdit={handleEdit}
+                                    onApprove={handleApprove}
+                                    onReject={handleReject}
                                     onStartSession={handleStartSession}
                                     showPatientName={true}
                                     emptyMessage="No sittings scheduled for today."

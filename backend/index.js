@@ -27,6 +27,9 @@ import wellnessRoutes from './routes/wellness.js';
 import chatRoutes from './routes/chat.js';
 import branchRoutes from './routes/branch.js';
 import availabilityRoutes from './routes/availability.js';
+import adherenceRoutes from './routes/adherence.js';
+import leaderboardRoutes from './routes/leaderboard.js';
+
 import { initializeWebSocket } from './websocket/index.js';
 import { schedulerService } from './services/scheduler.service.js';
 
@@ -111,6 +114,9 @@ app.use('/api/wellness', wellnessRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/availability', availabilityRoutes);
+app.use('/api/adherence', adherenceRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
+
 
 // Serve static files from the React app
 const distPath = path.join(__dirname, '../dist');

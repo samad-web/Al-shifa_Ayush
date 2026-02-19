@@ -79,7 +79,8 @@ router.get('/doctor-gamification', authMiddleware, roleMiddleware(['DOCTOR', 'AD
 
 router.get('/list-doctors', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR']), async (req, res, next) => {
   try {
-    const data = await UserService.listDoctors();
+    const { branchId } = req.query;
+    const data = await UserService.listDoctors(branchId);
     res.json(data);
   } catch (err) {
     next(err);

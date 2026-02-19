@@ -1,7 +1,6 @@
 import { Download, FileText, Calendar } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
 interface Prescription {
     id: string;
@@ -11,6 +10,7 @@ interface Prescription {
     duration: string;
     notes?: string;
     fileUrl?: string;
+    videoUrl?: string;
     createdAt: string;
     doctor?: {
         fullName?: string;
@@ -112,6 +112,29 @@ export function PrescriptionList({
                                         <p className="text-sm text-foreground/80 leading-relaxed">
                                             {rx.notes}
                                         </p>
+                                    </div>
+                                )}
+
+                                {/* Video Player */}
+                                {rx.videoUrl && (
+                                    <div className="pt-4 border-t border-border/50">
+                                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                                            Educational Video
+                                        </p>
+                                        <div className="aspect-video bg-black rounded-xl overflow-hidden shadow-inner relative group">
+                                            <iframe
+                                                className="w-full h-full"
+                                                src={rx.videoUrl.includes('youtube.com/watch?v=')
+                                                    ? rx.videoUrl.replace('watch?v=', 'embed/')
+                                                    : rx.videoUrl.includes('youtu.be/')
+                                                        ? rx.videoUrl.replace('youtu.be/', 'youtube.com/embed/')
+                                                        : rx.videoUrl}
+                                                title={`Educational video for ${rx.medicationName}`}
+                                                frameBorder="0"
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                allowFullScreen
+                                            ></iframe>
+                                        </div>
                                     </div>
                                 )}
 

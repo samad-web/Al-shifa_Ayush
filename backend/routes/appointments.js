@@ -11,8 +11,7 @@ const appointmentSchema = z.object({
   doctorId: z.string().optional(),
   therapistId: z.string().optional(),
   date: z.string(),
-  status: z.enum(['PENDING', 'SCHEDULED', 'CONFIRMED', 'CANCELLED', 'COMPLETED']).optional(),
-  notes: z.string().optional(),
+  status: z.enum(['PENDING', 'SCHEDULED', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'PENDING_THERAPIST_APPROVAL', 'PENDING_DOCTOR_APPROVAL', 'ACCEPTED']).optional(),
   triageSessionId: z.string().optional(),
   contactDetails: z.object({
     fullName: z.string().min(2),
@@ -23,7 +22,7 @@ const appointmentSchema = z.object({
 
 const updateAppointmentSchema = z.object({
   date: z.string().optional(),
-  status: z.enum(['PENDING', 'SCHEDULED', 'CONFIRMED', 'CANCELLED', 'COMPLETED']).optional(),
+  status: z.enum(['PENDING', 'SCHEDULED', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'PENDING_THERAPIST_APPROVAL', 'PENDING_DOCTOR_APPROVAL', 'ACCEPTED']).optional(),
   notes: z.string().optional()
 });
 
@@ -72,9 +71,9 @@ router.delete('/:id', authMiddleware, async (req, res, next) => {
   }
 });
 
-router.put('/:id/approve', authMiddleware, roleMiddleware(['DOCTOR', 'ADMIN', 'ADMIN_DOCTOR']), async (req, res, next) => {
+router.put('/:id/approve', authMiddleware, roleMiddleware(['DOCTOR', 'THERAPIST', 'ADMIN', 'ADMIN_DOCTOR']), async (req, res, next) => {
   try {
-    const appointment = await AppointmentService.updateAppointment(req.params.id, req.user, { status: 'CONFIRMED' });
+    const appointment = await AppointmentService.approveAppointment(req.params.id, req.user);
     res.json(appointment);
   } catch (err) {
     next(err);

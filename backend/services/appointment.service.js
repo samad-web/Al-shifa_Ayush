@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma.js';
 import { notificationService } from './notification.service.js';
 import { AvailabilityService } from './availability.service.js';
-
-const prisma = new PrismaClient();
 
 const includeDetails = {
     doctor: { include: { user: { select: { email: true } } } },
@@ -50,7 +48,7 @@ export class AppointmentService {
     }
 
     static async createAppointment(user, data) {
-        const { patientId, doctorId, therapistId, date, status, notes, triageSessionId, contactDetails } = data;
+        const { patientId, doctorId, therapistId, date, status, notes, triageSessionId, contactDetails, consultationType, consultationMode } = data;
 
         let actualPatientId;
         if (user.role === 'PATIENT') {
@@ -65,53 +63,59 @@ export class AppointmentService {
             actualPatientId = patientId;
         }
 
-        // Duplicate Check Logic
         const appointmentDate = new Date(date);
-        const existingAppointment = await prisma.appointment.findFirst({
-            where: {
-                patientId: actualPatientId,
-                doctorId,
-                date: appointmentDate,
-                status: { notIn: ['CANCELLED'] }
-            }
-        });
 
-        if (existingAppointment) {
-            throw new Error('An appointment already exists for this patient and doctor at the selected time.');
-        }
+        // Dynamic Validation based on Consultation Type
+        if (consultationType === 'DOCTOR' && !doctorId) throw new Error('Doctor selection is required for Doctor consultation');
+        if (consultationType === 'THERAPIST' && !therapistId) throw new Error('Therapist selection is required for Therapist consultation');
+        if (consultationType === 'COMBINED' && (!doctorId || !therapistId)) throw new Error('Both Doctor and Therapist are required for Combined consultation');
 
-        // Doctor double-booking prevention (basic)
-        const doctorBusy = await prisma.appointment.findFirst({
-            where: {
-                doctorId,
-                date: appointmentDate,
-                status: { notIn: ['CANCELLED'] }
-            }
-        });
-
-        if (doctorBusy) {
-            throw new Error('The selected doctor is already booked at this time.');
-        }
-
-        // Availability Check
-        if (doctorId) {
-            const appointmentEndTime = new Date(appointmentDate.getTime() + 60 * 60 * 1000); // 1 hour duration
+        // 1. Doctor Availability Check
+        if (doctorId && (consultationType === 'DOCTOR' || consultationType === 'COMBINED')) {
             const startTimeStr = appointmentDate.toTimeString().slice(0, 5);
+            const appointmentEndTime = new Date(appointmentDate.getTime() + 60 * 60 * 1000); // 1 hr duration
             const endTimeStr = appointmentEndTime.toTimeString().slice(0, 5);
 
-            const availability = await AvailabilityService.checkAvailability(
-                doctorId,
-                appointmentDate.toISOString(),
-                startTimeStr,
-                endTimeStr
+            const docAvailability = await AvailabilityService.checkAvailability(
+                doctorId, appointmentDate.toISOString(), startTimeStr, endTimeStr
             );
+            if (!docAvailability.available) throw new Error(`Doctor unavailable: ${docAvailability.reason}`);
 
-            if (!availability.available) {
-                throw new Error(`Doctor is unavailable: ${availability.reason}`);
-            }
+            // Double booking check for doctor
+            const docBusy = await prisma.appointment.findFirst({
+                where: { doctorId, date: appointmentDate, status: { notIn: ['CANCELLED'] } }
+            });
+            if (docBusy) throw new Error('The selected doctor is already booked at this time.');
         }
 
-        // Triage Validation
+        const actualTherapistDate = data.therapistDate ? new Date(data.therapistDate) : appointmentDate;
+
+        // 2. Therapist Availability Check (Using separate therapistDate if provided)
+        if (therapistId && (consultationType === 'THERAPIST' || consultationType === 'COMBINED')) {
+            const tStartTimeStr = actualTherapistDate.toTimeString().slice(0, 5);
+            const tEndTime = new Date(actualTherapistDate.getTime() + 60 * 60 * 1000); // 1 hr duration
+            const tEndTimeStr = tEndTime.toTimeString().slice(0, 5);
+
+            const therapistAvailability = await AvailabilityService.checkAvailability(
+                therapistId, actualTherapistDate.toISOString(), tStartTimeStr, tEndTimeStr
+            );
+            if (!therapistAvailability.available) throw new Error(`Therapist unavailable: ${therapistAvailability.reason}`);
+
+            // Double booking check for therapist
+            const therapistBusy = await prisma.appointment.findFirst({
+                where: {
+                    therapistId,
+                    OR: [
+                        { date: actualTherapistDate },
+                        { therapistDate: actualTherapistDate }
+                    ],
+                    status: { notIn: ['CANCELLED'] }
+                }
+            });
+            if (therapistBusy) throw new Error('The selected therapist is already booked at this time.');
+        }
+
+        // Triage Validation for Admin Doctor
         if (doctorId) {
             const targetDoctor = await prisma.doctor.findUnique({
                 where: { id: doctorId },
@@ -142,26 +146,31 @@ export class AppointmentService {
             }
         }
 
+        // Online meeting generation (placeholder logic)
+        let meetingLink = null;
+        if (consultationMode === 'ONLINE') {
+            meetingLink = `https://meet.jit.si/al-shifa-${Math.random().toString(36).substring(7)}`;
+        }
+
         const appointment = await prisma.appointment.create({
             data: {
                 patientId: actualPatientId,
-                doctorId,
-                therapistId,
+                doctorId: (consultationType === 'THERAPIST' || !doctorId) ? null : doctorId,
+                therapistId: (consultationType === 'DOCTOR' || !therapistId) ? null : therapistId,
                 date: appointmentDate,
+                therapistDate: (consultationType === 'COMBINED' || consultationType === 'THERAPIST') ? actualTherapistDate : null,
                 status: user.role === 'PATIENT' ? 'PENDING' : (status || 'CONFIRMED'),
                 notes,
-                triageSessionId,
+                triageSessionId: triageSessionId || null,
+                consultationType: consultationType || 'DOCTOR',
+                consultationMode: consultationMode || 'OFFLINE',
+                meetingLink,
                 branchId: user.branchId || (await prisma.patient.findUnique({ where: { id: actualPatientId } }))?.branchId
             },
             include: includeDetails
         });
 
-        // Trigger notification
-        try {
-            await notificationService.sendAppointmentConfirmation(appointment.id);
-        } catch (notifyError) {
-            console.error('[AppointmentService] Failed to send confirmation notification:', notifyError.message);
-        }
+        // notification trigger removed from here as per Doctor-Approval workflow
 
         return appointment;
     }
@@ -170,13 +179,16 @@ export class AppointmentService {
         const existing = await prisma.appointment.findUnique({ where: { id } });
         if (!existing) throw new Error('Appointment not found');
 
+        const updateData = {
+            ...(data.date && { date: new Date(data.date) }),
+            ...(data.therapistDate && { therapistDate: new Date(data.therapistDate) }),
+            ...(data.status && { status: data.status }),
+            ...(data.notes !== undefined && { notes: data.notes }),
+        };
+
         const appointment = await prisma.appointment.update({
             where: { id },
-            data: {
-                ...(data.date && { date: new Date(data.date) }),
-                ...(data.status && { status: data.status }),
-                ...(data.notes !== undefined && { notes: data.notes }),
-            },
+            data: updateData,
             include: includeDetails
         });
 
@@ -188,6 +200,69 @@ export class AppointmentService {
         }
 
         return appointment;
+    }
+
+    static async approveAppointment(id, user) {
+        const existing = await prisma.appointment.findUnique({ where: { id } });
+        if (!existing) throw new Error('Appointment not found');
+
+        const isDoctor = ['DOCTOR', 'ADMIN_DOCTOR'].includes(user.role);
+        const isTherapist = user.role === 'THERAPIST';
+
+        if (!isDoctor && !isTherapist) {
+            throw new Error('Unauthorized: Only Doctors or Therapists can approve appointments');
+        }
+
+        // Determine flags to update
+        const updateData = {};
+        if (isDoctor) updateData.doctorApproved = true;
+        if (isTherapist) updateData.therapistApproved = true;
+
+        // Fetch updated flags (merging with existing)
+        const docApp = updateData.doctorApproved || existing.doctorApproved;
+        const therApp = updateData.therapistApproved || existing.therapistApproved;
+
+        // Calculate final status based on consultation type
+        let newStatus = existing.status;
+        const type = existing.consultationType;
+
+        if (type === 'DOCTOR') {
+            if (docApp) newStatus = 'ACCEPTED';
+        } else if (type === 'THERAPIST') {
+            if (therApp) newStatus = 'ACCEPTED';
+        } else if (type === 'COMBINED') {
+            if (docApp && therApp) {
+                newStatus = 'ACCEPTED';
+            } else if (docApp) {
+                newStatus = 'PENDING_THERAPIST_APPROVAL';
+            } else if (therApp) {
+                newStatus = 'PENDING_DOCTOR_APPROVAL';
+            }
+        }
+
+        updateData.status = newStatus;
+
+        const updated = await prisma.appointment.update({
+            where: { id },
+            data: updateData,
+            include: includeDetails
+        });
+
+        // Trigger notification only after Doctor accepts
+        const isDoctorApprovedState = (newStatus === 'ACCEPTED' || newStatus === 'PENDING_THERAPIST_APPROVAL');
+        const wasDoctorApprovedState = (existing.status === 'ACCEPTED' || existing.status === 'PENDING_THERAPIST_APPROVAL' || existing.status === 'COMPLETED');
+
+        if (isDoctorApprovedState && !wasDoctorApprovedState) {
+            console.log(`[AppointmentService] Doctor approval detected (status: ${newStatus}). Triggering confirmation.`);
+            try {
+                // Pass 'PATIENT' role to bypass the NotificationService fail-safe check for the recipient
+                await notificationService.sendAppointmentConfirmation(updated, 'PATIENT');
+            } catch (notifyError) {
+                console.error('[AppointmentService] Failed to send confirmation notification:', notifyError.message);
+            }
+        }
+
+        return updated;
     }
 
     static async cancelAppointment(id) {

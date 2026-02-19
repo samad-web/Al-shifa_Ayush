@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Panel } from "@/components/ui/panel";
-import { Plus, Trash2, Search, Loader2, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, Search, Loader2, CheckCircle2, PlaySquare } from "lucide-react";
 import { toast } from "sonner";
 import {
     Select,
@@ -21,6 +21,7 @@ interface Medicine {
     category: string;
     price: number;
     totalStock: number;
+    videoUrl?: string;
 }
 
 interface PrescriptionItem {
@@ -32,6 +33,14 @@ interface PrescriptionItem {
     timing: string;
     vehicle: string;
     medicineId?: string;
+    videoUrl: string;
+}
+
+interface ExternalVideo {
+    id: string;
+    title: string;
+    videoUrl: string;
+    category: string;
 }
 
 interface MultiplePrescriptionFormProps {
@@ -65,6 +74,7 @@ export function MultiplePrescriptionForm({
 }: MultiplePrescriptionFormProps) {
     const [loading, setLoading] = useState(false);
     const [medicines, setMedicines] = useState<Medicine[]>([]);
+    const [videos, setVideos] = useState<ExternalVideo[]>([]);
     const [prescriptionItems, setPrescriptionItems] = useState<PrescriptionItem[]>([
         {
             medicationName: "",
@@ -74,12 +84,28 @@ export function MultiplePrescriptionForm({
             notes: "",
             timing: "AFTER_FOOD",
             vehicle: "WARM_WATER",
+            videoUrl: "",
         },
     ]);
 
     useEffect(() => {
         fetchMedicines();
+        fetchVideos();
     }, []);
+
+    const fetchVideos = async () => {
+        try {
+            const res = await fetch("/api/wellness/videos", {
+                headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setVideos(data);
+            }
+        } catch (error) {
+            console.error("Failed to fetch videos:", error);
+        }
+    };
 
     const fetchMedicines = async () => {
         try {
@@ -106,6 +132,7 @@ export function MultiplePrescriptionForm({
                 notes: "",
                 timing: "AFTER_FOOD",
                 vehicle: "WARM_WATER",
+                videoUrl: "",
             },
         ]);
     };
@@ -121,11 +148,15 @@ export function MultiplePrescriptionForm({
         const newItems = [...prescriptionItems];
         newItems[index] = { ...newItems[index], [field]: value };
 
-        // If updating medicationName, try to find medicineId
+        // If updating medicationName, try to find medicineId and videoUrl
         if (field === "medicationName") {
             const med = medicines.find(m => m.name.toLowerCase() === value.toLowerCase());
             if (med) {
                 newItems[index].medicineId = med.id;
+                // @ts-ignore - videoUrl might not be in the local Medicine type yet but is in the backend response
+                if (med.videoUrl) {
+                    newItems[index].videoUrl = med.videoUrl;
+                }
             }
         }
 
@@ -296,6 +327,36 @@ export function MultiplePrescriptionForm({
                                     onChange={(e) => updateItem(index, "notes", e.target.value)}
                                     placeholder="Additional instructions..."
                                 />
+                            </div>
+
+                            <div className="md:col-span-4 space-y-2 border-t border-border/30 pt-4">
+                                <Label className="flex items-center gap-2">
+                                    Educational Video URL (Optional)
+                                    <span className="text-[10px] text-muted-foreground font-normal">Link a video for the patient to follow</span>
+                                </Label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="relative">
+                                        <Input
+                                            value={item.videoUrl}
+                                            onChange={(e) => updateItem(index, "videoUrl", e.target.value)}
+                                            placeholder="Paste YouTube/Vimeo URL or select from library..."
+                                            list={`video-list-${index}`}
+                                        />
+                                        <datalist id={`video-list-${index}`}>
+                                            {videos.map(v => (
+                                                <option key={v.id} value={v.videoUrl}>{v.title} ({v.category})</option>
+                                            ))}
+                                        </datalist>
+                                    </div>
+                                    <div className="flex items-center">
+                                        {item.videoUrl && (
+                                            <div className="text-[10px] text-primary flex items-center gap-2 p-2 bg-primary/5 rounded-lg w-full">
+                                                <PlaySquare className="w-3 h-3" />
+                                                <span className="truncate">Video link attached: {item.videoUrl}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { PrescriptionList } from "@/components/prescription-list";
+import { AdherenceTracker } from "@/components/adherence-tracker";
 
 // Mock data aligned with backend models
 type JourneyStatus = "ON_TRACK" | "AT_RISK" | "COMPLETED";
@@ -138,7 +139,7 @@ export default function PatientScreen() {
                       <div className="p-2 rounded-lg bg-primary/10">
                         <Pill className="w-5 h-5 text-primary" />
                       </div>
-                      <h2 className="text-xl font-bold text-foreground">Today's Care</h2>
+                      <h2 className="text-xl font-bold text-foreground">Today's Medication</h2>
                     </div>
                     <button
                       onClick={() => setShowNotifications(!showNotifications)}
@@ -149,35 +150,7 @@ export default function PatientScreen() {
                     </button>
                   </div>
 
-                  {medicineTaken ? (
-                    <div className="flex items-center gap-4 py-5 px-5 bg-wellness/5 border border-wellness/20 rounded-xl">
-                      <CheckCircle2 className="w-8 h-8 text-wellness" />
-                      <div>
-                        <p className="font-semibold text-foreground">Medicine Taken</p>
-                        <p className="text-sm text-muted-foreground">
-                          Great job taking care of yourself today
-                        </p>
-                      </div>
-                    </div>
-                  ) : showMedicineSuccess ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="animate-check-pop">
-                        <CheckCircle2 className="w-16 h-16 text-wellness" />
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={handleMarkMedicine}
-                      className={cn(
-                        "w-full py-4 px-6 rounded-xl font-semibold text-center transition-all duration-200",
-                        "bg-primary text-primary-foreground",
-                        "hover:bg-primary/90 active:scale-[0.98]",
-                        "shadow-md hover:shadow-lg text-lg"
-                      )}
-                    >
-                      Mark Medicine Taken
-                    </button>
-                  )}
+                  <AdherenceTracker patientId={profile?.patient?.id || ""} />
                 </div>
 
                 {/* Prescription Section */}

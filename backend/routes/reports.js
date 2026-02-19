@@ -147,4 +147,20 @@ router.get('/patient/:patientId/progress', authMiddleware, roleMiddleware(['ADMI
     }
 });
 
+router.get('/monthly-completed-appointments', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR', 'DOCTOR', 'THERAPIST', 'PHARMACIST']), async (req, res, next) => {
+    try {
+        const filters = {
+            role: req.user.role,
+            userId: req.user.id,
+            branchId: req.user.branchId,
+            page: req.query.page,
+            limit: req.query.limit
+        };
+        const data = await analyticsService.getMonthlyCompletedAppointments(filters);
+        res.json({ success: true, ...data });
+    } catch (err) {
+        next(err);
+    }
+});
+
 export default router;

@@ -92,18 +92,21 @@ model Doctor {
 }
 
 model BlockedSlot {
-  id        String    @id @default(uuid())
-  doctorId  String
-  date      DateTime?
-  dayOfWeek Int?
-  startTime String
-  endTime   String
-  reason    String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  doctor    Doctor    @relation(fields: [doctorId], references: [id])
+  id          String     @id @default(uuid())
+  doctorId    String?
+  therapistId String?
+  date        DateTime?
+  dayOfWeek   Int?
+  startTime   String
+  endTime     String
+  reason      String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  doctor      Doctor?    @relation(fields: [doctorId], references: [id])
+  therapist   Therapist? @relation(fields: [therapistId], references: [id])
 
   @@index([doctorId])
+  @@index([therapistId])
   @@index([date])
 }
 
@@ -125,6 +128,7 @@ model Therapist {
   prescriptions      Prescription[]
   user               User                @relation(fields: [userId], references: [id])
   videoPrescriptions VideoPrescription[]
+  blockedSlots       BlockedSlot[]
 }
 
 model Pharmacist {
@@ -219,23 +223,27 @@ model VideoPrescription {
 model Appointment {
   id               String         @id @default(uuid())
   patientId        String
-  doctorId         String
+  doctorId         String?
   therapistId      String?
   date             DateTime
   status           String
   notes            String?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
+  consultationType ConsultationType @default(DOCTOR)
   consultationMode String         @default("OFFLINE")
   meetingLink      String?
+  therapistDate    DateTime?
   sessionNotes     String?
   triageSessionId  String?        @unique
-  doctor           Doctor         @relation(fields: [doctorId], references: [id])
+  doctor           Doctor?        @relation(fields: [doctorId], references: [id])
   patient          Patient        @relation(fields: [patientId], references: [id])
   therapist        Therapist?     @relation(fields: [therapistId], references: [id])
   triageSession    TriageSession? @relation(fields: [triageSessionId], references: [id])
   branch           Branch?        @relation(fields: [branchId], references: [id])
   branchId         String?
+  doctorApproved   Boolean        @default(false)
+  therapistApproved Boolean       @default(false)
 
   @@index([patientId])
   @@index([doctorId])
@@ -260,6 +268,7 @@ model Prescription {
   lowStockThreshold Int             @default(5)
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
+  videoUrl          String?
   doctor            Doctor?         @relation(fields: [doctorId], references: [id])
   medicine          Medicine?       @relation(fields: [medicineId], references: [id])
   patient           Patient         @relation(fields: [patientId], references: [id])
@@ -367,6 +376,8 @@ model MedicationLog {
   date           DateTime
   medicationName String
   dosage         String
+  slot           String?
+  scheduledTime  String?
   quantityTaken  Int           @default(1)
   taken          Boolean       @default(false)
   takenAt        DateTime?
@@ -433,6 +444,7 @@ model Medicine {
   price         Float
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
+  videoUrl      String?
   dispenseItems DispenseItem[]
   invoiceItems       InvoiceItem[]
   stocks             MedicineStock[]
@@ -626,4 +638,42 @@ enum Role {
   PATIENT
   ADMIN
   PHARMACIST
+}
+
+enum ConsultationType {
+  DOCTOR
+  THERAPIST
+  COMBINED
+}
+
+model LeaderboardConfig {
+  id                    String   @id @default(uuid())
+  appointmentWeight     Float    @default(0.2)
+  adherenceWeight       Float    @default(0.2)
+  responseTimeWeight    Float    @default(0.2)
+  successRateWeight     Float    @default(0.2)
+  consistencyWeight     Float    @default(0.2)
+  targetAppointments    Int      @default(50)
+  targetAdherence       Float    @default(90.0)
+  targetSuccessRate     Float    @default(80.0)
+  targetResponseTime    Float    @default(30.0) // minutes
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model LeaderboardAudit {
+  id                String   @id @default(uuid())
+  participantId     String
+  participantRole   Role
+  score             Float
+  metrics           Json     // Stores the raw metrics used for calculation
+  weights           Json     // Stores the weights used for calculation
+  sourceRecordIds   Json?    // Tracks the IDs of original records used in scoring
+  integrityHash     String?  // Hash of the data used for verification
+  rank              Int?
+  calculationDate   DateTime @default(now())
+  
+  @@index([participantId])
+  @@index([calculationDate])
 }

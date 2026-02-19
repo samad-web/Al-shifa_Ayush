@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma.js';
 import path from 'path';
-
-const prisma = new PrismaClient();
 
 const HIGH_RISK_SYMPTOMS = [
     'Chest Pain', 'Shortness of Breath', 'Severe Bleeding', 'Loss of Consciousness',

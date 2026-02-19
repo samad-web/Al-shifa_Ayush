@@ -22,7 +22,7 @@ export default function Appointments() {
     const [activeTab, setActiveTab] = useState<AppointmentStatus>("ALL");
 
     const isPatient = role === "PATIENT";
-    const canApprove = ["DOCTOR", "ADMIN", "ADMIN_DOCTOR"].includes(role || "");
+    const canApprove = ["DOCTOR", "THERAPIST", "ADMIN", "ADMIN_DOCTOR"].includes(role || "");
 
     useEffect(() => {
         fetchAppointments();
@@ -132,11 +132,23 @@ export default function Appointments() {
 
     const filteredAppointments = appointments.filter((apt) => {
         if (activeTab === "ALL") return true;
+        if (activeTab === "PENDING") {
+            return ["PENDING", "PENDING_THERAPIST_APPROVAL", "PENDING_DOCTOR_APPROVAL"].includes(apt.status);
+        }
+        if (activeTab === "CONFIRMED") {
+            return ["CONFIRMED", "ACCEPTED", "SCHEDULED"].includes(apt.status);
+        }
         return apt.status === activeTab;
     });
 
     const getTabCount = (status: AppointmentStatus) => {
         if (status === "ALL") return appointments.length;
+        if (status === "PENDING") {
+            return appointments.filter((apt) => ["PENDING", "PENDING_THERAPIST_APPROVAL", "PENDING_DOCTOR_APPROVAL"].includes(apt.status)).length;
+        }
+        if (status === "CONFIRMED") {
+            return appointments.filter((apt) => ["CONFIRMED", "ACCEPTED", "SCHEDULED"].includes(apt.status)).length;
+        }
         return appointments.filter((apt) => apt.status === status).length;
     };
 

@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma.js';
 
 export class ConsultationService {
     static async getAvailability(userId, role, therapistIdQuery) {
