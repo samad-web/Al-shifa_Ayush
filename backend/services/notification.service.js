@@ -1,6 +1,6 @@
 import prisma from '../lib/prisma.js';
 
-const N8N_WEBHOOK_URL = "https://n8n.srv930949.hstgr.cloud/webhook-test/6d090cd6-89ef-4fc3-97d1-0a6c0ca9debe";
+const N8N_WEBHOOK_URL = "https://n8n.srv930949.hstgr.cloud/webhook/6d090cd6-89ef-4fc3-97d1-0a6c0ca9debe";
 const WEBHOOK_SECRET = "shifa-ayush-secret-token-2024";
 
 // Track processed appointment IDs for idempotency
@@ -23,27 +23,10 @@ export class NotificationService {
             let appointment = appointmentOrId;
             const appointmentId = typeof appointmentOrId === 'string' ? appointmentOrId : appointmentOrId.id;
 
-            // 2. Idempotency check: Prevent duplicate triggers
-            if (processedIds.has(appointmentId)) {
-                console.log(`[NotificationService] Webhook Bypassed – Duplicate Trigger for ${appointmentId}`);
-                return false;
-            }
-
-            // If only ID is provided, fetch full details with all needed relations
-            if (typeof appointmentOrId === 'string') {
+            // 1. Fetch full details with all needed relations for payload integrity
+            if (typeof appointmentOrId === 'string' || !appointment.doctor || !appointment.patient) {
                 appointment = await prisma.appointment.findUnique({
-                    where: { id: appointmentOrId },
-                    include: {
-                        doctor: true,
-                        therapist: true,
-                        patient: true,
-                        branch: true
-                    }
-                });
-            } else if (appointment && (!appointment.doctor || !appointment.patient)) {
-                // If object is passed but missing relations, re-fetch to be safe
-                appointment = await prisma.appointment.findUnique({
-                    where: { id: appointment.id },
+                    where: { id: appointmentId },
                     include: {
                         doctor: true,
                         therapist: true,
@@ -55,69 +38,47 @@ export class NotificationService {
 
             if (!appointment) return false;
 
-            // Mark as processed immediately to prevent concurrent triggers
-            processedIds.add(appointmentId);
+            // 2. Persistent Idempotency check
+            if (processedIds.has(appointmentId) || appointment.notificationSent) {
+                console.log(`[NotificationService] IDEMPOTENCY - Webhook Bypassed for ${appointmentId} (Flag: ${appointment.notificationSent})`);
+                return false;
+            }
 
-            // 1. Client and Contact Info (Strictly from the record)
+            // 3. Client and Contact Info
             const patientName = appointment.patient?.fullName || appointment.contactDetails?.fullName;
             if (!patientName) {
                 console.error(`[NotificationService] Data Integrity Error: Missing patient name for appointment ${appointmentId}`);
                 return false;
             }
 
-            // ... (rest of the formatting logic remains the same)
-
-            // 2. Phone Number Sanitation & Formatting for India (+91)
+            // 4. Phone Number Formatting (+91)
             let rawPhone = appointment.contactDetails?.phoneNumber || appointment.patient?.phoneNumber || "";
-            // Remove all non-digits
             let sanitizedPhone = rawPhone.replace(/\D/g, '');
-            // Remove leading zero if present
-            if (sanitizedPhone.startsWith('0')) {
-                sanitizedPhone = sanitizedPhone.substring(1);
-            }
-            // Append 91 if not already present as prefix
+            if (sanitizedPhone.startsWith('0')) sanitizedPhone = sanitizedPhone.substring(1);
             const formattedMobile = sanitizedPhone.startsWith('91') && sanitizedPhone.length > 10
                 ? sanitizedPhone
                 : `91${sanitizedPhone}`;
 
-            // 3. Provider Details (Explicitly handled)
-            const doctorName = appointment.doctor ? appointment.doctor.fullName : null;
-            const therapistName = appointment.therapist ? appointment.therapist.fullName : null;
-
-            // 4. Date and Time Formatting
-            const docDate = appointment.date ? new Date(appointment.date) : null;
-            const therDate = appointment.therapistDate ? new Date(appointment.therapistDate) : null;
-
+            // 5. Date and Time Formatting
             const formatDateTime = (date) => {
                 if (!date) return null;
                 return {
-                    date: date.toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                    }),
-                    time: date.toLocaleTimeString('en-US', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    }),
+                    date: date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+                    time: date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
                     iso: date.toISOString()
                 };
             };
 
-            const docTimeInfo = appointment.doctorId ? formatDateTime(docDate) : null;
-            const therTimeInfo = appointment.therapistId ? formatDateTime(therDate) : null;
+            const docTimeInfo = appointment.date ? formatDateTime(new Date(appointment.date)) : null;
+            const therTimeInfo = appointment.therapistDate ? formatDateTime(new Date(appointment.therapistDate)) : null;
 
-            // 5. Estimated Arrival (15 mins before for physical visits)
+            // 6. Estimated Arrival (15 mins before)
             let estimatedArrivalTime = null;
             if (appointment.consultationMode === 'OFFLINE') {
-                const arrivalDate = docDate || therDate;
+                const arrivalDate = appointment.date ? new Date(appointment.date) : (appointment.therapistDate ? new Date(appointment.therapistDate) : null);
                 if (arrivalDate) {
                     const arrival = new Date(arrivalDate.getTime() - 15 * 60000);
-                    estimatedArrivalTime = arrival.toLocaleTimeString('en-US', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    });
+                    estimatedArrivalTime = arrival.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
                 }
             }
 
@@ -127,25 +88,24 @@ export class NotificationService {
                 mobileNumber: formattedMobile,
                 appointmentDate: docTimeInfo?.date || therTimeInfo?.date,
                 appointmentTime: docTimeInfo?.time || therTimeInfo?.time,
-                doctorName: doctorName,
-                doctorAppointmentTime: docTimeInfo ? docTimeInfo.time : null,
-                therapistName: therapistName,
-                therapistAppointmentTime: therTimeInfo ? therTimeInfo.time : null,
+                doctorName: appointment.doctor?.fullName || null,
+                therapistName: appointment.therapist?.fullName || null,
                 branch: appointment.branch?.name || null,
-                consultationMode: appointment.consultationMode || null,
+                consultationMode: appointment.consultationMode,
                 consultationType: appointment.consultationType,
-                estimatedArrivalTime: estimatedArrivalTime,
+                estimatedArrivalTime,
                 thankYouMessage: `Dear ${patientName}, your appointment at Al-Shifa Ayush is confirmed.`,
-                metadata: {
-                    status: appointment.status,
-                    timestamp: new Date().toISOString()
-                }
+                metadata: { status: appointment.status, timestamp: new Date().toISOString() }
             };
 
-            // Audit Log: Record exact payload before dispatch
-            console.log(`[NotificationService] AUDIT LOG - Payload for ${appointmentId}:`, JSON.stringify(payload, null, 2));
+            // 7. Mark as processed BEFORE dispatching to guarantee once-only behavior
+            await prisma.appointment.update({
+                where: { id: appointmentId },
+                data: { notificationSent: true }
+            });
+            processedIds.add(appointmentId);
 
-            console.log(`[NotificationService] Triggering n8n webhook for appointment ${appointment.id} (Mobile: ${formattedMobile})`);
+            console.log(`[NotificationService] AUDIT LOG - Dispatching for ${appointmentId}:`, JSON.stringify(payload, null, 2));
 
             // Non-blocking trigger using background fetch
             fetch(N8N_WEBHOOK_URL, {

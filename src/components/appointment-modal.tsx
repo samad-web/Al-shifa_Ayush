@@ -196,20 +196,41 @@ export function AppointmentModal({
                     });
 
                     // Pre-populate notes with onboarding data if it's a new appointment
-                    if (!isEditing && patientData.onboardingData) {
-                        const od = patientData.onboardingData;
-                        const onboardingSummary = `[Baseline Info] 
-Gender: ${od.gender || 'Not specified'}
-Sleep: ${od.sleepBedtime || ''}-${od.sleepWakeTime || ''} (${od.sleepDuration}h)
-Pain Level: ${od.painLevel}/10
-Pain Locations: ${od.painLocations?.join(', ') || 'N/A'}`;
+                    if (!isEditing && (patientData.onboardingData || patientData.triageSessions?.length > 0)) {
+                        let additionalNotes = "";
+
+                        // 1. Onboarding Baseline Info
+                        if (patientData.onboardingData) {
+                            const od = patientData.onboardingData;
+                            additionalNotes += `[Baseline Info] \nGender: ${od.gender || 'Not specified'}\nSleep: ${od.sleepBedtime || ''}-${od.sleepWakeTime || ''} (${od.sleepDuration}h)\nPain Level: ${od.painLevel}/10\nPain Locations: ${od.painLocations?.join(', ') || 'N/A'}`;
+                        }
+
+                        // 2. Triage Summary (Fresh from Questionnaire)
+                        if (patientData.triageSessions?.length > 0) {
+                            const latestTriage = patientData.triageSessions[0];
+                            const resp = latestTriage.responses || {};
+                            const triageSummary = `\n\n[Triage Summary] (${new Date(latestTriage.createdAt).toLocaleDateString()})
+Pain Area: ${resp.painArea || 'N/A'}
+Severity: ${resp.painSeverity || 0}/10
+Symptoms: ${resp.symptoms?.join(', ') || 'None'}
+History: ${resp.medicalHistory || 'None'}
+Medications: ${resp.medications || 'None'}`;
+
+                            additionalNotes += triageSummary;
+
+                            // Also set the triageSessionId for the appointment record
+                            if (!triageSessionId) {
+                                setTriageSessionId(latestTriage.id);
+                            }
+                        }
 
                         setFormData(prev => {
-                            // Prevent double-appending if context hasn't changed
-                            if (prev.notes.includes("[Baseline Info]")) return prev;
+                            // Prevent double-appending
+                            if (prev.notes.includes("[Triage Summary]") || prev.notes.includes("[Baseline Info]")) return prev;
+                            const trimmedNotes = prev.notes.trim();
                             return {
                                 ...prev,
-                                notes: prev.notes ? `${prev.notes}\n\n${onboardingSummary}` : onboardingSummary
+                                notes: trimmedNotes ? `${trimmedNotes}\n\n${additionalNotes.trim()}` : additionalNotes.trim()
                             };
                         });
                     }

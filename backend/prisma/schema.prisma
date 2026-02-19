@@ -244,6 +244,7 @@ model Appointment {
   branchId         String?
   doctorApproved   Boolean        @default(false)
   therapistApproved Boolean       @default(false)
+  notificationSent  Boolean       @default(false)
 
   @@index([patientId])
   @@index([doctorId])

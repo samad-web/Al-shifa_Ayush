@@ -248,18 +248,20 @@ export class AppointmentService {
             include: includeDetails
         });
 
-        // Trigger notification only after Doctor accepts
-        const isDoctorApprovedState = (newStatus === 'ACCEPTED' || newStatus === 'PENDING_THERAPIST_APPROVAL');
-        const wasDoctorApprovedState = (existing.status === 'ACCEPTED' || existing.status === 'PENDING_THERAPIST_APPROVAL' || existing.status === 'COMPLETED');
+        // Trigger notification only after DUAL confirmation (Doctor AND Therapist)
+        const isDualApproved = updated.doctorApproved && updated.therapistApproved;
+        const wasDualApproved = existing.doctorApproved && existing.therapistApproved;
 
-        if (isDoctorApprovedState && !wasDoctorApprovedState) {
-            console.log(`[AppointmentService] Doctor approval detected (status: ${newStatus}). Triggering confirmation.`);
+        if (isDualApproved && !wasDualApproved) {
+            console.log(`[AppointmentService] DUAL CONFIRMATION detected for ${id}. Triggering notification.`);
             try {
-                // Pass 'PATIENT' role to bypass the NotificationService fail-safe check for the recipient
+                // Pass 'PATIENT' role to bypass the NotificationService recipient validation
                 await notificationService.sendAppointmentConfirmation(updated, 'PATIENT');
             } catch (notifyError) {
                 console.error('[AppointmentService] Failed to send confirmation notification:', notifyError.message);
             }
+        } else if ((updated.doctorApproved || updated.therapistApproved) && !isDualApproved) {
+            console.log(`[AppointmentService] Pending Dual Confirmation for ${id} (Doc: ${updated.doctorApproved}, Ther: ${updated.therapistApproved})`);
         }
 
         return updated;
