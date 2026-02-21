@@ -6,6 +6,7 @@ const includeDetails = {
     doctor: { include: { user: { select: { email: true } } } },
     therapist: { include: { user: { select: { email: true } } } },
     patient: { include: { user: { select: { email: true } } } },
+    triageSession: true,
 };
 
 export class AppointmentService {
@@ -152,6 +153,26 @@ export class AppointmentService {
             meetingLink = `https://meet.jit.si/al-shifa-${Math.random().toString(36).substring(7)}`;
         }
 
+        // 3. Clinical Recommendation Enforcement
+        if (triageSessionId) {
+            const triage = await prisma.triageSession.findUnique({ where: { id: triageSessionId } });
+            if (triage) {
+                const responses = triage.responses || {};
+                const isEscalation = triage.isEscalated || responses.classification === 'Escalation Required';
+
+                // If escalation required, only allow ADMIN_DOCTOR
+                if (isEscalation) {
+                    const selectedDoctor = await prisma.doctor.findUnique({
+                        where: { id: doctorId },
+                        include: { user: true }
+                    });
+                    if (selectedDoctor?.user?.role !== 'ADMIN_DOCTOR') {
+                        throw new Error('Your assessment recommends a Senior Specialist (Admin Doctor) review for optimal care. Please select an appropriate clinician.');
+                    }
+                }
+            }
+        }
+
         const appointment = await prisma.appointment.create({
             data: {
                 patientId: actualPatientId,
@@ -167,7 +188,10 @@ export class AppointmentService {
                 meetingLink,
                 branchId: user.branchId || (await prisma.patient.findUnique({ where: { id: actualPatientId } }))?.branchId
             },
-            include: includeDetails
+            include: {
+                ...includeDetails,
+                triageSession: true // Include triage details for immediate return if needed
+            }
         });
 
         // notification trigger removed from here as per Doctor-Approval workflow
@@ -197,6 +221,19 @@ export class AppointmentService {
                 where: { id: appointment.patientId },
                 data: { zenPoints: { increment: 100 } }
             });
+        }
+
+        // Trigger notification if status transitions to ACCEPTED and not already sent
+        const isDoctor = ['DOCTOR', 'ADMIN_DOCTOR'].includes(user.role);
+        const transitioningToAccepted = data.status === 'ACCEPTED' && existing.status !== 'ACCEPTED';
+
+        if (transitioningToAccepted && isDoctor && !appointment.notificationSent) {
+            console.log(`[AppointmentService] Manual status update to ACCEPTED by ${user.role} for ${id}. Triggering notification.`);
+            try {
+                await notificationService.sendAppointmentConfirmation(appointment, 'PATIENT');
+            } catch (notifyError) {
+                console.error('[AppointmentService] Failed to send confirmation notification:', notifyError.message);
+            }
         }
 
         return appointment;
@@ -248,20 +285,19 @@ export class AppointmentService {
             include: includeDetails
         });
 
-        // Trigger notification only after DUAL confirmation (Doctor AND Therapist)
-        const isDualApproved = updated.doctorApproved && updated.therapistApproved;
-        const wasDualApproved = existing.doctorApproved && existing.therapistApproved;
+        // Trigger notification ONLY when the Doctor explicitly accepts
+        const justDoctorApproved = isDoctor && !existing.doctorApproved;
 
-        if (isDualApproved && !wasDualApproved) {
-            console.log(`[AppointmentService] DUAL CONFIRMATION detected for ${id}. Triggering notification.`);
+        if (justDoctorApproved && !updated.notificationSent) {
+            console.log(`[AppointmentService] Doctor explicitly approved ${id}. Triggering notification.`);
             try {
                 // Pass 'PATIENT' role to bypass the NotificationService recipient validation
                 await notificationService.sendAppointmentConfirmation(updated, 'PATIENT');
             } catch (notifyError) {
                 console.error('[AppointmentService] Failed to send confirmation notification:', notifyError.message);
             }
-        } else if ((updated.doctorApproved || updated.therapistApproved) && !isDualApproved) {
-            console.log(`[AppointmentService] Pending Dual Confirmation for ${id} (Doc: ${updated.doctorApproved}, Ther: ${updated.therapistApproved})`);
+        } else {
+            console.log(`[AppointmentService] Status updated for ${id}. Notification check: Sent=${updated.notificationSent}, JustDocApproved=${justDoctorApproved}`);
         }
 
         return updated;
@@ -293,5 +329,9 @@ export class AppointmentService {
             })
         ]);
         return { doctors, therapists };
+    }
+
+    static async getAvailableSlots(clinicianId, date) {
+        return AvailabilityService.getAvailableSlots(clinicianId, date);
     }
 }

@@ -32,19 +32,20 @@ async function testDualConfirmation() {
         const docUser = { role: 'DOCTOR' };
         await AppointmentService.approveAppointment(appointmentId, docUser);
 
-        // 4. Check if notification was sent (should NOT be)
+        // 4. Check if notification was sent (should BE now)
         const afterDoc = await prisma.appointment.findUnique({ where: { id: appointmentId } });
         console.log(`Status after Doc: ${afterDoc.status}`);
         console.log(`Flags: DocApproved: ${afterDoc.doctorApproved}, TherApproved: ${afterDoc.therapistApproved}`);
         console.log(`Notification Sent Flag: ${afterDoc.notificationSent}`);
+
         if (afterDoc.notificationSent) {
-            console.error('ERROR: Notification sent prematurely after single approval!');
+            console.log('SUCCESS: Doctor approval triggered the notification immediately!');
         } else {
-            console.log('CORRECT: Notification withheld (Pending Dual Confirmation).');
+            console.error('ERROR: Notification NOT sent after Doctor approval.');
         }
 
-        // 5. Simulate Therapist Approval
-        console.log('\nStep 3: Simulating Therapist Approval...');
+        // 5. Simulate Therapist Approval (Should NOT trigger again)
+        console.log('\nStep 3: Simulating Therapist Approval (Should NOT trigger again)...');
         const therUser = { role: 'THERAPIST' };
         await AppointmentService.approveAppointment(appointmentId, therUser);
 

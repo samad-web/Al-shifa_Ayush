@@ -18,6 +18,7 @@ import PatientScreen from "./pages/PatientScreen";
 import { lazy, Suspense } from "react";
 const PatientOnboarding = lazy(() => import("./pages/PatientOnboarding"));
 const PatientWellness = lazy(() => import("./pages/PatientWellness"));
+const PatientAppointments = lazy(() => import("./pages/PatientAppointments"));
 const ExerciseLibrary = lazy(() => import("./pages/ExerciseLibrary"));
 const Chat = lazy(() => import("./pages/Chat"));
 import NotFound from "./pages/NotFound";
@@ -83,6 +84,18 @@ function LoginRedirect() {
   return <Login />;
 }
 
+function AppointmentDispatcher() {
+  const { role } = useAuth();
+  if (role === "PATIENT") {
+    return (
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+        <PatientAppointments />
+      </Suspense>
+    );
+  }
+  return <Appointments />;
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -135,7 +148,7 @@ function AppRoutes() {
         path="/appointments"
         element={
           <ProtectedRoute allowedRoles={["PATIENT", "DOCTOR", "THERAPIST", "ADMIN", "ADMIN_DOCTOR"]}>
-            <Appointments />
+            <AppointmentDispatcher />
           </ProtectedRoute>
         }
       />

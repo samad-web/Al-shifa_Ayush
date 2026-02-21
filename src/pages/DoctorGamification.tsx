@@ -34,6 +34,8 @@ export default function DoctorGamification() {
       .finally(() => setLoading(false));
   }, []);
 
+  const isTherapist = role === "THERAPIST";
+
   if (role !== "DOCTOR" && role !== "ADMIN_DOCTOR" && role !== "ADMIN" && role !== "THERAPIST") return <div>Access denied.</div>;
 
   if (loading) return (
@@ -41,7 +43,9 @@ export default function DoctorGamification() {
       <div className="container max-w-6xl mx-auto px-4 py-8 flex items-center justify-center min-h-[50vh]">
         <div className="flex flex-col items-center gap-4">
           <Activity className="w-8 h-8 text-primary animate-pulse" />
-          <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Aggregating Clinical Data...</p>
+          <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
+            {isTherapist ? "Aggregating Therapeutic Data..." : "Aggregating Clinical Data..."}
+          </p>
         </div>
       </div>
     </AppLayout>
@@ -54,10 +58,29 @@ export default function DoctorGamification() {
   );
 
   // --- Gamification logic ---
-  const getLevel = (score: number): { label: string; band: "excellent" | "good" | "needs-attention"; next: string | null; nextAt: number | null; color: string } => {
-    if (score >= 90) return { label: "Master of Wellness", band: "excellent", next: null, nextAt: null, color: "text-amber-500" };
-    if (score >= 60) return { label: "Attending Physician", band: "good", next: "Master of Wellness", nextAt: 90, color: "text-slate-400" };
-    return { label: "Clinical Resident", band: "needs-attention", next: "Attending Physician", nextAt: 60, color: "text-amber-700" };
+  const getLevel = (score: number, userRole: string | null): { label: string; band: "excellent" | "good" | "needs-attention"; next: string | null; nextAt: number | null; color: string } => {
+    const isTherapist = userRole === "THERAPIST";
+    if (score >= 90) return {
+      label: isTherapist ? "Master of Therapy" : "Master of Wellness",
+      band: "excellent",
+      next: null,
+      nextAt: null,
+      color: "text-amber-500"
+    };
+    if (score >= 60) return {
+      label: isTherapist ? "Lead Therapist" : "Attending Physician",
+      band: "good",
+      next: isTherapist ? "Master of Therapy" : "Master of Wellness",
+      nextAt: 90,
+      color: "text-slate-400"
+    };
+    return {
+      label: isTherapist ? "Associate Therapist" : "Clinical Resident",
+      band: "needs-attention",
+      next: isTherapist ? "Lead Therapist" : "Attending Physician",
+      nextAt: 60,
+      color: "text-amber-700"
+    };
   };
 
   const totalExcellence = stats.length > 0 ? Math.round(stats.reduce((sum, d) => sum + (d.score || 0), 0) / stats.length) : 0;
@@ -68,23 +91,26 @@ export default function DoctorGamification() {
   // In a real app, we'd find the user's specific record
   const currentDoc = stats[0] || {};
   const docExcellence = currentDoc.score || 0;
-  const level = getLevel(docExcellence);
+  const level = getLevel(docExcellence, role);
   const toNext = level.nextAt ? Math.max(0, level.nextAt - docExcellence) : 0;
 
   return (
     <AppLayout>
       <div className="container max-w-6xl mx-auto px-4 py-8 md:py-12 space-y-10">
         <PageHeader
-          title="Clinical Intelligence & Excellence"
-          subtitle="Visualize clinical quality, patient recovery trajectories, and specialized performance bands."
+          title={isTherapist ? "Therapeutic Intelligence & Excellence" : "Clinical Intelligence & Excellence"}
+          subtitle={isTherapist
+            ? "Visualize therapeutic quality, patient recovery trajectories, and specialized performance bands."
+            : "Visualize clinical quality, patient recovery trajectories, and specialized performance bands."
+          }
         />
 
         {/* Global Stats Bar */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard title="Network Excellence" value={`${totalExcellence}%`} icon={Award} description="Avg excellence score" />
           <StatCard title="Recovery Index" value={`${avgRecovery}%`} icon={Activity} description="Avg patient progress" />
-          <StatCard title="Provider Network" value={activeDoctors} icon={Users} />
-          <StatCard title="Primary Rank" value={level.label} icon={Award} description="Current prestige tier" />
+          <StatCard title={isTherapist ? "Therapist Network" : "Provider Network"} value={activeDoctors} icon={Users} />
+          <StatCard title={isTherapist ? "Therapist Rank" : "Primary Rank"} value={level.label} icon={Award} description="Current prestige tier" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 items-start">
@@ -148,7 +174,9 @@ export default function DoctorGamification() {
                     {level.next ? (
                       `Increase your clinical excellence score by ${toNext} points through successful patient recoveries and consistent engagement.`
                     ) : (
-                      "You have reached the peak of clinical excellence at Al-Shifa. Your patient dedication is exemplary."
+                      isTherapist
+                        ? "You have reached the peak of therapeutic excellence at Al-Shifa. Your patient dedication is exemplary."
+                        : "You have reached the peak of clinical excellence at Al-Shifa. Your patient dedication is exemplary."
                     )}
                   </p>
                 </div>
@@ -177,7 +205,7 @@ export default function DoctorGamification() {
               <CardHeader className="border-b border-border/50 bg-secondary/10">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-xl">Clinician Excellence Rankings</CardTitle>
+                    <CardTitle className="text-xl">{isTherapist ? "Therapist Excellence Rankings" : "Clinician Excellence Rankings"}</CardTitle>
                     <CardDescription>Ranked by outcome-weighted excellence scores</CardDescription>
                   </div>
                   <div className="p-2 bg-background rounded-lg border border-border/50">

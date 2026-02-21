@@ -62,7 +62,7 @@ const getRoleNavItems = (role: AppRole | null) => {
         { path: "/therapist", label: "Today's Sittings", icon: Heart },
         { path: "/appointments", label: "Appointments", icon: CalendarDays },
         { path: "/prescriptions", label: "Prescriptions", icon: FilePlus2 },
-        { path: "/doctor-gamification", label: "Doctor Gamification", icon: Activity },
+        { path: "/doctor-gamification", label: "Therapist Gamification", icon: Activity },
         { path: "/doctor-availability", label: "Availability", icon: CalendarDays },
         { path: "/chat", label: "Chat", icon: MessageSquare },
       ];

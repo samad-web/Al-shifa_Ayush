@@ -21,7 +21,6 @@ export default function Appointments() {
     const [editingAppointment, setEditingAppointment] = useState<any>(null);
     const [activeTab, setActiveTab] = useState<AppointmentStatus>("ALL");
 
-    const isPatient = role === "PATIENT";
     const canApprove = ["DOCTOR", "THERAPIST", "ADMIN", "ADMIN_DOCTOR"].includes(role || "");
 
     useEffect(() => {
@@ -165,17 +164,9 @@ export default function Appointments() {
                                 Appointments
                             </h1>
                             <p className="text-muted-foreground mt-1">
-                                {isPatient
-                                    ? "Request and track your appointments"
-                                    : "Manage and approve appointment requests"}
+                                Manage and approve appointment requests
                             </p>
                         </div>
-                        {isPatient && (
-                            <Button onClick={() => setModalOpen(true)} className="gap-2">
-                                <Plus className="h-4 w-4" />
-                                Request Appointment
-                            </Button>
-                        )}
                     </div>
 
                     {/* Tabs */}
@@ -228,7 +219,7 @@ export default function Appointments() {
                                     onCancel={handleCancel}
                                     onApprove={canApprove ? handleApprove : undefined}
                                     onReject={canApprove ? handleReject : undefined}
-                                    showPatientName={!isPatient}
+                                    showPatientName={true}
                                     emptyMessage={`No ${activeTab === "ALL" ? "" : activeTab.toLowerCase()} appointments`}
                                 />
                             )}

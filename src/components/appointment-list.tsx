@@ -44,6 +44,13 @@ interface Appointment {
     meetingLink?: string;
     doctorApproved: boolean;
     therapistApproved: boolean;
+    triageSession?: {
+        id: string;
+        severity: string;
+        suggestedSpecialty: string;
+        responses: any;
+        createdAt: string;
+    };
 }
 
 interface AppointmentListProps {
@@ -271,6 +278,50 @@ export function AppointmentList({
                                         <p className="text-sm text-foreground/80 leading-relaxed">
                                             {appointment.notes}
                                         </p>
+                                    </div>
+                                )}
+
+                                {/* Triage Summary Section */}
+                                {appointment.triageSession && (
+                                    <div className="pt-3 border-t border-border/50">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <p className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                                                <Activity className="w-3.5 h-3.5" />
+                                                Triage Summary
+                                            </p>
+                                            <Badge variant="outline" className={cn(
+                                                "text-[10px] font-black uppercase",
+                                                appointment.triageSession.severity === 'EMERGENCY' || appointment.triageSession.severity === 'HIGH'
+                                                    ? "bg-risk/10 text-risk border-risk/20"
+                                                    : "bg-wellness/10 text-wellness border-wellness/20"
+                                            )}>
+                                                {appointment.triageSession.severity}
+                                            </Badge>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-muted/30 p-3 rounded-lg border border-border/40">
+                                            <div className="space-y-1">
+                                                <p className="text-[10px] text-muted-foreground uppercase font-bold">Primary Concern</p>
+                                                <p className="text-xs font-medium">{appointment.triageSession.responses?.painArea || 'N/A'}</p>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <p className="text-[10px] text-muted-foreground uppercase font-bold">Severity</p>
+                                                <p className="text-xs font-medium">{appointment.triageSession.responses?.painSeverity}/10</p>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <p className="text-[10px] text-muted-foreground uppercase font-bold">Symptoms</p>
+                                                <p className="text-xs font-medium">{appointment.triageSession.responses?.symptoms?.join(', ') || 'None'}</p>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <p className="text-[10px] text-muted-foreground uppercase font-bold">Duration</p>
+                                                <p className="text-xs font-medium">{appointment.triageSession.responses?.duration || 'N/A'}</p>
+                                            </div>
+                                            {appointment.triageSession.responses?.medicalHistory && (
+                                                <div className="col-span-full space-y-1 border-t border-border/40 pt-2">
+                                                    <p className="text-[10px] text-muted-foreground uppercase font-bold">Medical History</p>
+                                                    <p className="text-xs italic text-foreground/70">{appointment.triageSession.responses.medicalHistory}</p>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
 

@@ -8,11 +8,14 @@ const router = express.Router();
 
 const appointmentSchema = z.object({
   patientId: z.string().optional(),
-  doctorId: z.string().optional(),
-  therapistId: z.string().optional(),
+  doctorId: z.string().nullable().optional(),
+  therapistId: z.string().nullable().optional(),
   date: z.string(),
   status: z.enum(['PENDING', 'SCHEDULED', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'PENDING_THERAPIST_APPROVAL', 'PENDING_DOCTOR_APPROVAL', 'ACCEPTED']).optional(),
   triageSessionId: z.string().optional(),
+  consultationType: z.enum(['DOCTOR', 'THERAPIST', 'COMBINED']).optional(),
+  consultationMode: z.enum(['OFFLINE', 'ONLINE']).optional(),
+  notes: z.string().optional(),
   contactDetails: z.object({
     fullName: z.string().min(2),
     phoneNumber: z.string(),
@@ -37,8 +40,30 @@ router.get('/', authMiddleware, async (req, res, next) => {
 
 router.post('/', authMiddleware, roleMiddleware(['PATIENT', 'ADMIN', 'ADMIN_DOCTOR']), validate({ body: appointmentSchema }), async (req, res, next) => {
   try {
+    // Strict control for PATIENT: ignore administrative fields
+    if (req.user.role === 'PATIENT') {
+      const { status, ...patientBody } = req.body;
+      // Patient can only set notes, triageSessionId and essential booking fields
+      // Backend service will force status to PENDING
+      const appointment = await AppointmentService.createAppointment(req.user, patientBody);
+      return res.status(201).json(appointment);
+    }
+
     const appointment = await AppointmentService.createAppointment(req.user, req.body);
     res.status(201).json(appointment);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/available-slots', authMiddleware, async (req, res, next) => {
+  try {
+    const { clinicianId, date } = req.query;
+    if (!clinicianId || !date) {
+      return res.status(400).json({ error: 'clinicianId and date are required' });
+    }
+    const slots = await AppointmentService.getAvailableSlots(clinicianId, date);
+    res.json(slots);
   } catch (err) {
     next(err);
   }
