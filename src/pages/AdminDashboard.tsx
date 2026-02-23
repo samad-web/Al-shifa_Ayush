@@ -46,7 +46,11 @@ export default function AdminDashboard() {
       const res = await fetch("/api/appointments", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
-        setAppointments(data);
+        if (data.appointments) {
+          setAppointments(data.appointments);
+        } else {
+          setAppointments(data);
+        }
       }
     } catch (error) {
       console.error("Failed to fetch appointments:", error);

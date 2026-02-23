@@ -25,7 +25,8 @@ const updateConfigSchema = z.object({
  */
 router.get('/', authMiddleware, async (req, res, next) => {
     try {
-        const leaderboard = await LeaderboardService.getLeaderboard();
+        const { branchId } = req.query;
+        const leaderboard = await LeaderboardService.getLeaderboard(branchId);
         res.json(leaderboard);
     } catch (err) {
         next(err);

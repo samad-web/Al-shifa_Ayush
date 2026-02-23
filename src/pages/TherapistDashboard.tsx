@@ -69,7 +69,11 @@ export default function TherapistDashboard() {
             });
             if (res.ok) {
                 const data = await res.json();
-                setAppointments(data);
+                if (data.appointments) {
+                    setAppointments(data.appointments);
+                } else {
+                    setAppointments(data);
+                }
             }
         } catch (error) {
             console.error("Failed to fetch appointments:", error);

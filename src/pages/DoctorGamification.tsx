@@ -8,7 +8,8 @@ import { StatCard } from "@/components/ui/stat-card";
 import { Panel } from "@/components/ui/panel";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { DoctorPerformanceBadge } from "@/components/ui/doctor-performance-badge";
-import { Users, Award, Activity, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Users, Award, Activity, TrendingUp, TrendingDown, Minus, MapPin, Filter } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
@@ -23,16 +24,34 @@ export default function DoctorGamification() {
   const [error, setError] = useState("");
   const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [branches, setBranches] = useState<any[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("all");
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/leaderboard`, {
+    // Fetch branches
+    fetch(`${API_BASE_URL}/api/branches`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+    })
+      .then((res) => res.ok ? res.json() : [])
+      .then(setBranches)
+      .catch(err => console.error("Failed to fetch branches", err));
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    const url = new URL(`${API_BASE_URL}/api/leaderboard`);
+    if (selectedBranchId !== "all") {
+      url.searchParams.append("branchId", selectedBranchId);
+    }
+
+    fetch(url.toString(), {
       headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
     })
       .then((res) => res.ok ? res.json() : Promise.reject(res))
       .then(setStats)
       .catch(() => setError("Failed to load clinical statistics"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedBranchId]);
 
   const isTherapist = role === "THERAPIST";
 
@@ -103,7 +122,30 @@ export default function DoctorGamification() {
             ? "Visualize therapeutic quality, patient recovery trajectories, and specialized performance bands."
             : "Visualize clinical quality, patient recovery trajectories, and specialized performance bands."
           }
-        />
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex flex-col items-end mr-2">
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Performance Segment</span>
+              <p className="text-xs font-bold text-foreground/70">Branch-wise Filtering</p>
+            </div>
+            <Select value={selectedBranchId} onValueChange={setSelectedBranchId}>
+              <SelectTrigger className="w-[200px] h-10 border-border/60 bg-card/50 backdrop-blur-sm shadow-sm ring-offset-background focus:ring-primary/20">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-primary" />
+                  <SelectValue placeholder="All Branches" />
+                </div>
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border shadow-elevated">
+                <SelectItem value="all" className="text-xs font-bold py-2.5">All Branches (Global)</SelectItem>
+                {branches.map((b) => (
+                  <SelectItem key={b.id} value={b.id} className="text-xs font-bold py-2.5">
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </PageHeader>
 
         {/* Global Stats Bar */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

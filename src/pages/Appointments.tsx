@@ -29,6 +29,7 @@ export default function Appointments() {
     }, []);
 
     const fetchAppointments = async () => {
+        setLoading(true);
         try {
             const res = await fetch(`${API_BASE_URL}/api/appointments`, {
                 headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
@@ -41,9 +42,13 @@ export default function Appointments() {
                 } else {
                     setAppointments(data);
                 }
+            } else {
+                const errorData = await res.json();
+                toast.error(errorData.error || "Failed to fetch appointments");
             }
         } catch (error) {
             console.error("Failed to fetch appointments:", error);
+            toast.error("Could not connect to the server. Please check your internet connection.");
         } finally {
             setLoading(false);
         }

@@ -32,7 +32,7 @@ const updateAppointmentSchema = z.object({
 
 router.get('/', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR', 'DOCTOR', 'THERAPIST', 'PATIENT']), async (req, res, next) => {
   try {
-    const appointments = await AppointmentService.getAppointments(req.user);
+    const appointments = await AppointmentService.getAppointments(req.user, req.query);
     res.json(appointments);
   } catch (err) {
     next(err);

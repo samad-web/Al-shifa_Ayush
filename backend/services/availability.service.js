@@ -227,7 +227,7 @@ export class AvailabilityService {
         return { available: true };
     }
 
-    static async getAvailableSlots(clinicianId, date) {
+    static async getAvailableSlots(clinicianId, date, intervalMinutes = 30) {
         const checkDate = new Date(date);
         const dayOfWeek = checkDate.getDay();
         const dateString = checkDate.toISOString().split('T')[0];
@@ -241,9 +241,13 @@ export class AvailabilityService {
             prisma.blockedSlot.findMany({
                 where: {
                     OR: [{ doctorId: clinicianId }, { therapistId: clinicianId }],
-                    OR: [
-                        { date: { gte: new Date(dateString), lt: new Date(new Date(dateString).getTime() + 24 * 60 * 60 * 1000) } },
-                        { dayOfWeek: dayOfWeek, date: null }
+                    AND: [
+                        {
+                            OR: [
+                                { date: { gte: new Date(dateString), lt: new Date(new Date(dateString).getTime() + 24 * 60 * 60 * 1000) } },
+                                { dayOfWeek: dayOfWeek, date: null }
+                            ]
+                        }
                     ]
                 }
             }),
@@ -257,16 +261,28 @@ export class AvailabilityService {
         ]);
 
         const slots = [];
-        for (let hour = workingStart; hour < workingEnd; hour++) {
-            const slotStart = `${hour.toString().padStart(2, '0')}:00`;
-            const slotEnd = `${(hour + 1).toString().padStart(2, '0')}:00`;
+        const totalMinutes = (workingEnd - workingStart) * 60;
+
+        for (let offset = 0; offset < totalMinutes; offset += intervalMinutes) {
+            const startHour = Math.floor(offset / 60) + workingStart;
+            const startMin = offset % 60;
+            const endOffset = offset + intervalMinutes;
+            const endHour = Math.floor(endOffset / 60) + workingStart;
+            const endMin = endOffset % 60;
+
+            const slotStart = `${startHour.toString().padStart(2, '0')}:${startMin.toString().padStart(2, '0')}`;
+            const slotEnd = `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
             const slotLabel = `${slotStart} - ${slotEnd}`;
+
+            if (endHour > workingEnd || (endHour === workingEnd && endMin > 0)) break;
 
             // Check if blocked by leave
             const block = blocks.find(b => slotStart < b.endTime && slotEnd > b.startTime);
             if (block) {
                 slots.push({
                     slot: slotLabel,
+                    startTime: slotStart,
+                    endTime: slotEnd,
                     status: 'BLOCKED',
                     reason: block.reason || 'Doctor unavailable (Leave)'
                 });
@@ -276,13 +292,15 @@ export class AvailabilityService {
             // Check if booked by appointment
             const appointment = appointments.find(a => {
                 const start = a.date.toTimeString().slice(0, 5);
-                const end = new Date(a.date.getTime() + 60 * 60 * 1000).toTimeString().slice(0, 5);
+                const end = new Date(a.date.getTime() + 60 * 60 * 1000).toTimeString().slice(0, 5); // Default 1hr
                 return slotStart < end && slotEnd > start;
             });
 
             if (appointment) {
                 slots.push({
                     slot: slotLabel,
+                    startTime: slotStart,
+                    endTime: slotEnd,
                     status: 'BOOKED',
                     reason: 'Slot already reserved'
                 });
@@ -291,10 +309,41 @@ export class AvailabilityService {
 
             slots.push({
                 slot: slotLabel,
+                startTime: slotStart,
+                endTime: slotEnd,
                 status: 'AVAILABLE'
             });
         }
 
         return slots;
+    }
+
+    static async findNextAvailableSlot(clinicianId, originalDate, intervalMinutes = 30) {
+        const slots = await this.getAvailableSlots(clinicianId, originalDate, intervalMinutes);
+        const originalTimeStr = new Date(originalDate).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+        // Find slots that are at least 30 mins away from the original time
+        // We look both forward and backward, but prioritize forward
+        const availableSlots = slots.filter(s => s.status === 'AVAILABLE');
+
+        if (availableSlots.length === 0) return null;
+
+        const originalInMinutes = (new Date(originalDate).getHours() * 60) + new Date(originalDate).getMinutes();
+        const buffer = 30;
+
+        // Filter valid candidates (at least 30 mins away)
+        const candidates = availableSlots.map(s => {
+            const [h, m] = s.startTime.split(':').map(Number);
+            const slotMinutes = (h * 60) + m;
+            return { ...s, diff: Math.abs(slotMinutes - originalInMinutes), slotMinutes };
+        }).filter(s => s.diff >= buffer);
+
+        if (candidates.length === 0) return null;
+
+        // Sort by closest diff
+        candidates.sort((a, b) => a.diff - b.diff);
+
+        // Return the best candidate's label
+        return candidates[0].slot;
     }
 }

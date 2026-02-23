@@ -168,18 +168,25 @@ export class LeaderboardService {
     /**
      * Get the leaderboard with balanced performance
      */
-    static async getLeaderboard() {
+    static async getLeaderboard(branchId = null) {
         const config = await this.getConfig();
         const now = new Date();
         const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
 
+        const participantWhere = {
+            user: {
+                role: { in: ['DOCTOR', 'THERAPIST'] },
+                ...(branchId && { branchId })
+            }
+        };
+
         const [doctors, therapists] = await Promise.all([
             prisma.doctor.findMany({
-                where: { user: { role: 'DOCTOR' } },
+                where: { ...participantWhere, user: { role: 'DOCTOR', ...(branchId && { branchId }) } },
                 include: { user: true }
             }),
             prisma.therapist.findMany({
-                where: { user: { role: 'THERAPIST' } },
+                where: { ...participantWhere, user: { role: 'THERAPIST', ...(branchId && { branchId }) } },
                 include: { user: true }
             })
         ]);

@@ -40,6 +40,7 @@ export function ClientBookingModal({
     const [fetchingSlots, setFetchingSlots] = useState(false);
     const [triageSessionId, setTriageSessionId] = useState<string | null>(null);
     const [triageResult, setTriageResult] = useState<any>(null);
+    const [suggestedSlot, setSuggestedSlot] = useState<string | null>(null);
 
     const [formData, setFormData] = useState({
         branchId: "",
@@ -70,6 +71,7 @@ export function ClientBookingModal({
                 slot: "",
                 notes: "",
             });
+            setSuggestedSlot(null);
         }
     }, [isOpen]);
 
@@ -185,11 +187,14 @@ export function ClientBookingModal({
                     branchId: formData.branchId
                 }),
             });
-
             if (res.ok) {
                 toast.success("Appointment request submitted successfully!");
                 onSuccess?.();
                 onClose();
+            } else if (res.status === 409) {
+                const err = await res.json();
+                setSuggestedSlot(err.suggestedSlot || null);
+                toast.error("That slot was just taken! We found another one for you.");
             } else {
                 const err = await res.json();
                 toast.error(err.error || "Failed to book appointment");
@@ -529,6 +534,33 @@ export function ClientBookingModal({
                                     <span className="text-sm font-bold text-primary">{formData.slot}</span>
                                 </div>
                             </div>
+
+                            {suggestedSlot && (
+                                <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg animate-in fade-in zoom-in-95">
+                                    <div className="flex items-start gap-3">
+                                        <div className="p-2 bg-primary/20 rounded-full text-primary">
+                                            <CalendarIcon className="w-4 h-4" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-sm font-bold text-foreground">Next Available SlotFound</p>
+                                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                                The requested time is no longer available. How about <span className="font-bold text-primary">{suggestedSlot}</span> instead?
+                                            </p>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="mt-2 h-8 text-[11px] font-bold border-primary/40 hover:bg-primary/20 hover:text-primary transition-all"
+                                                onClick={() => {
+                                                    setFormData({ ...formData, slot: suggestedSlot });
+                                                    setSuggestedSlot(null);
+                                                }}
+                                            >
+                                                Accept Suggestion
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="space-y-2">
                                 <Label htmlFor="notes" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Additional Information (Optional)</Label>

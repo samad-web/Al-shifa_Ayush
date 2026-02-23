@@ -145,14 +145,20 @@ app.get('*', (req, res) => {
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error(err);
   const status = err.status || 500;
   const message = process.env.NODE_ENV === 'production'
     ? 'Internal Server Error'
     : err.message || 'Internal Server Error';
 
+  logger.error(`API Error: ${req.method} ${req.url}`, err, {
+    status,
+    userId: req.user?.id,
+    role: req.user?.role
+  });
+
   res.status(status).json({
     error: message,
+    ...(err.suggestedSlot && { suggestedSlot: err.suggestedSlot }),
     ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
   });
 });

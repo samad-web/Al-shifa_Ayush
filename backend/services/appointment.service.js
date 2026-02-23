@@ -12,65 +12,86 @@ const includeDetails = {
 
 export class AppointmentService {
     static async getAppointments({ id, role }, filters = {}) {
-        const { page = 1, limit = 20, status, date } = filters;
-        const skip = (parseInt(page) - 1) * parseInt(limit);
-        const take = parseInt(limit);
+        logger.info(`Trace: Entering getAppointments [User: ${id}, Role: ${role}]`, { filters });
 
-        let where = {
-            ...(status && { status }),
-            ...(date && { date: { gte: new Date(date), lt: new Date(new Date(date).getTime() + 86400000) } })
-        };
+        try {
+            const { page = 1, limit = 20, status, date } = filters;
+            const skip = (parseInt(page) - 1) * parseInt(limit);
+            const take = parseInt(limit);
 
-        if (role === 'PATIENT') {
-            const patientRecord = await prisma.patient.findUnique({
-                where: { userId: id },
-                select: { id: true },
-            });
-            if (!patientRecord) throw new Error('Patient profile not found');
-            where.patientId = patientRecord.id;
-        } else if (role === 'DOCTOR' || role === 'ADMIN_DOCTOR') {
-            const doctorRecord = await prisma.doctor.findUnique({
-                where: { userId: id },
-                select: { id: true },
-            });
-            if (!doctorRecord) throw new Error('Doctor profile not found');
-            where.doctorId = doctorRecord.id;
-        } else if (role === 'THERAPIST') {
-            const therapistRecord = await prisma.therapist.findUnique({
-                where: { userId: id },
-                select: { id: true },
-            });
-            if (!therapistRecord) throw new Error('Therapist profile not found');
-            where.therapistId = therapistRecord.id;
-        }
+            let where = {
+                ...(status && { status }),
+                ...(date && { date: { gte: new Date(date), lt: new Date(new Date(date).getTime() + 86400000) } })
+            };
 
-        const user = await prisma.user.findUnique({ where: { id } });
-        if (user?.branchId && role !== 'ADMIN_DOCTOR') {
-            where.branchId = user.branchId;
-        }
-
-        const [appointments, total] = await Promise.all([
-            prisma.appointment.findMany({
-                where,
-                include: includeDetails,
-                orderBy: { date: 'desc' },
-                skip,
-                take
-            }),
-            prisma.appointment.count({ where })
-        ]);
-
-        logger.info(`Fetched appointments for user ${id}`, { role, total, page });
-
-        return {
-            appointments,
-            pagination: {
-                total,
-                page: parseInt(page),
-                limit: take,
-                totalPages: Math.ceil(total / take)
+            // 1. Resolve Target Record (Patient/Doctor/Therapist)
+            if (role === 'PATIENT') {
+                const patientRecord = await prisma.patient.findUnique({
+                    where: { userId: id },
+                    select: { id: true },
+                });
+                if (!patientRecord) {
+                    logger.warn(`Search aborted: Patient profile missing for userId ${id}`);
+                    throw new Error('Patient profile not found. Please complete your profile.');
+                }
+                where.patientId = patientRecord.id;
+            } else if (role === 'DOCTOR' || role === 'ADMIN_DOCTOR') {
+                const doctorRecord = await prisma.doctor.findUnique({
+                    where: { userId: id },
+                    select: { id: true },
+                });
+                if (!doctorRecord && role !== 'ADMIN_DOCTOR') {
+                    logger.warn(`Profile missing for Doctor userId ${id}`);
+                    throw new Error('Doctor profile not found');
+                }
+                if (doctorRecord) where.doctorId = doctorRecord.id;
+            } else if (role === 'THERAPIST') {
+                const therapistRecord = await prisma.therapist.findUnique({
+                    where: { userId: id },
+                    select: { id: true },
+                });
+                if (!therapistRecord) {
+                    logger.warn(`Profile missing for Therapist userId ${id}`);
+                    throw new Error('Therapist profile not found');
+                }
+                where.therapistId = therapistRecord.id;
             }
-        };
+
+            // 2. Branch Locking (Except for Admin Doctor)
+            const user = await prisma.user.findUnique({ where: { id }, select: { branchId: true } });
+            if (user?.branchId && role !== 'ADMIN_DOCTOR') {
+                where.branchId = user.branchId;
+            }
+
+            logger.info(`Trace: Executing Appointment query`, { where, skip, take });
+
+            // 3. Parallel Fetching (Optimized with skip/take)
+            const [appointments, total] = await Promise.all([
+                prisma.appointment.findMany({
+                    where,
+                    include: includeDetails,
+                    orderBy: { date: 'desc' },
+                    skip,
+                    take
+                }),
+                prisma.appointment.count({ where })
+            ]);
+
+            logger.info(`Trace: Success [Count: ${appointments.length}, Total: ${total}]`);
+
+            return {
+                appointments,
+                pagination: {
+                    total,
+                    page: parseInt(page),
+                    limit: take,
+                    totalPages: Math.ceil(total / take)
+                }
+            };
+        } catch (error) {
+            logger.error(`Trace: Failure in getAppointments`, error, { id, role });
+            throw error;
+        }
     }
 
     static async createAppointment(user, data) {
@@ -115,7 +136,13 @@ export class AppointmentService {
             const docBusy = await prisma.appointment.findFirst({
                 where: { doctorId, date: appointmentDate, status: { notIn: ['CANCELLED', 'REJECTED'] } }
             });
-            if (docBusy) throw new Error('The selected doctor is already booked at this time.');
+            if (docBusy) {
+                const suggestion = await AvailabilityService.findNextAvailableSlot(doctorId, appointmentDate);
+                const error = new Error('The selected doctor is already booked at this time.');
+                error.status = 409;
+                error.suggestedSlot = suggestion;
+                throw error;
+            }
         }
 
         const actualTherapistDate = data.therapistDate ? new Date(data.therapistDate) : appointmentDate;
@@ -142,7 +169,13 @@ export class AppointmentService {
                     status: { notIn: ['CANCELLED', 'REJECTED'] }
                 }
             });
-            if (therapistBusy) throw new Error('The selected therapist is already booked at this time.');
+            if (therapistBusy) {
+                const suggestion = await AvailabilityService.findNextAvailableSlot(therapistId, actualTherapistDate);
+                const error = new Error('The selected therapist is already booked at this time.');
+                error.status = 409;
+                error.suggestedSlot = suggestion;
+                throw error;
+            }
         }
 
         // Triage Validation for Admin Doctor
