@@ -7,12 +7,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar as CalendarIcon, Loader2, Video, MapPin, ChevronRight, ChevronLeft, User, Activity, X } from "lucide-react";
+import { Calendar as CalendarIcon, Loader2, Video, MapPin, ChevronRight, ChevronLeft, User, Activity, X, Lock } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { TriageQuestionnaire } from "../triage/TriageQuestionnaire";
+
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
@@ -22,7 +24,7 @@ interface ClientBookingModalProps {
     onSuccess?: () => void;
 }
 
-type Step = "type" | "clinician" | "triage" | "time" | "confirm";
+type Step = "branch" | "type" | "clinician" | "triage" | "time" | "confirm";
 
 export function ClientBookingModal({
     isOpen,
@@ -30,15 +32,17 @@ export function ClientBookingModal({
     onSuccess,
 }: ClientBookingModalProps) {
     const [loading, setLoading] = useState(false);
-    const [step, setStep] = useState<Step>("type");
+    const [step, setStep] = useState<Step>("branch");
+    const [branches, setBranches] = useState<any[]>([]);
     const [doctors, setDoctors] = useState<any[]>([]);
     const [therapists, setTherapists] = useState<any[]>([]);
-    const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+    const [availableSlots, setAvailableSlots] = useState<any[]>([]);
     const [fetchingSlots, setFetchingSlots] = useState(false);
     const [triageSessionId, setTriageSessionId] = useState<string | null>(null);
     const [triageResult, setTriageResult] = useState<any>(null);
 
     const [formData, setFormData] = useState({
+        branchId: "",
         consultationType: "DOCTOR" as "DOCTOR" | "THERAPIST" | "COMBINED",
         consultationMode: "OFFLINE" as "OFFLINE" | "ONLINE",
         doctorId: "",
@@ -52,12 +56,28 @@ export function ClientBookingModal({
 
     useEffect(() => {
         if (isOpen) {
-            fetchStaff();
-            setStep("type");
+            fetchBranches();
+            setStep("branch");
             setTriageSessionId(null);
             setTriageResult(null);
+            setFormData({
+                branchId: "",
+                consultationType: "DOCTOR",
+                consultationMode: "OFFLINE",
+                doctorId: "",
+                therapistId: "",
+                date: undefined,
+                slot: "",
+                notes: "",
+            });
         }
     }, [isOpen]);
+
+    useEffect(() => {
+        if (formData.branchId && (step === "clinician" || (formData.date && formData.slot))) {
+            fetchStaff();
+        }
+    }, [formData.branchId, formData.date, formData.slot, step]);
 
     useEffect(() => {
         if (formData.date && (formData.doctorId || formData.therapistId)) {
@@ -65,15 +85,50 @@ export function ClientBookingModal({
         }
     }, [formData.date, formData.doctorId, formData.therapistId]);
 
+    const fetchBranches = async () => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/branches`, {
+                headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setBranches(data || []);
+            }
+        } catch (error) {
+            console.error("Failed to fetch branches:", error);
+        }
+    };
+
     const fetchStaff = async () => {
         try {
-            const res = await fetch(`${API_BASE_URL}/api/appointments/available-staff`, {
+            const params = new URLSearchParams();
+            if (formData.branchId) params.append("branchId", formData.branchId);
+            if (formData.date) params.append("date", formData.date.toISOString());
+            if (formData.slot) params.append("slot", formData.slot);
+
+            const res = await fetch(`${API_BASE_URL}/api/appointments/available-staff?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
             });
             if (res.ok) {
                 const data = await res.json();
                 setDoctors(data.doctors || []);
                 setTherapists(data.therapists || []);
+
+                // If currently selected doctor/therapist is no longer in the list, clear it
+                if (formData.doctorId && !data.doctors.some((d: any) => d.id === formData.doctorId)) {
+                    setFormData(prev => ({ ...prev, doctorId: "" }));
+                    if (step === "confirm") {
+                        toast.error("Selected doctor is no longer available for this time. Please choose another.");
+                        setStep("clinician");
+                    }
+                }
+                if (formData.therapistId && !data.therapists.some((t: any) => t.id === formData.therapistId)) {
+                    setFormData(prev => ({ ...prev, therapistId: "" }));
+                    if (step === "confirm") {
+                        toast.error("Selected therapist is no longer available for this time. Please choose another.");
+                        setStep("clinician");
+                    }
+                }
             }
         } catch (error) {
             console.error("Failed to fetch staff:", error);
@@ -126,7 +181,8 @@ export function ClientBookingModal({
                     therapistId: formData.therapistId || null,
                     date: appointmentDate.toISOString(),
                     notes: formData.notes,
-                    triageSessionId: triageSessionId
+                    triageSessionId: triageSessionId,
+                    branchId: formData.branchId
                 }),
             });
 
@@ -146,17 +202,19 @@ export function ClientBookingModal({
     };
 
     const nextStep = () => {
-        if (step === "type") setStep("triage");
-        else if (step === "triage") setStep("clinician");
-        else if (step === "clinician") setStep("time");
-        else if (step === "time") setStep("confirm");
+        if (step === "branch") setStep("type");
+        else if (step === "type") setStep("triage");
+        else if (step === "triage") setStep("time");
+        else if (step === "time") setStep("clinician");
+        else if (step === "clinician") setStep("confirm");
     };
 
     const prevStep = () => {
-        if (step === "triage") setStep("type");
-        else if (step === "clinician") setStep("triage");
-        else if (step === "time") setStep("clinician");
-        else if (step === "confirm") setStep("time");
+        if (step === "type") setStep("branch");
+        else if (step === "triage") setStep("type");
+        else if (step === "time") setStep("triage");
+        else if (step === "clinician") setStep("time");
+        else if (step === "confirm") setStep("clinician");
     };
 
     const selectedDoctor = doctors.find(d => d.id === formData.doctorId);
@@ -164,31 +222,21 @@ export function ClientBookingModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-md p-0 bg-card border border-border shadow-elevated rounded-xl max-h-[92vh] overflow-y-auto [&>button]:hidden">
+            <DialogContent className="max-w-md p-0 bg-card border border-border shadow-elevated rounded-xl max-h-[92vh] overflow-y-auto">
                 <div className="px-5 pt-5 pb-3 border-b border-border/50 relative">
-                    <div className="flex justify-between items-start mb-2">
-                        <DialogHeader className="text-left flex-1">
-                            <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-2">
-                                <CalendarIcon className="w-5 h-5 text-primary" />
-                                Book Appointment
-                            </DialogTitle>
-                        </DialogHeader>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 rounded-full hover:bg-muted shrink-0"
-                            onClick={onClose}
-                        >
-                            <X className="h-4 w-4" />
-                        </Button>
-                    </div>
+                    <DialogHeader className="text-left mb-2">
+                        <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-2">
+                            <CalendarIcon className="w-5 h-5 text-primary" />
+                            Book Appointment
+                        </DialogTitle>
+                    </DialogHeader>
                     <div className="flex gap-1.5 mt-4">
-                        {(["type", "triage", "clinician", "time", "confirm"] as Step[]).map((s, i) => (
+                        {(["branch", "type", "triage", "time", "clinician", "confirm"] as Step[]).map((s, i) => (
                             <div
                                 key={s}
                                 className={cn(
                                     "h-1 flex-1 rounded-full transition-all duration-300",
-                                    step === s ? "bg-primary" : (i < ["type", "triage", "clinician", "time", "confirm"].indexOf(step) ? "bg-primary/40" : "bg-muted")
+                                    step === s ? "bg-primary" : (i < ["branch", "type", "triage", "time", "clinician", "confirm"].indexOf(step) ? "bg-primary/40" : "bg-muted")
                                 )}
                             />
                         ))}
@@ -196,6 +244,34 @@ export function ClientBookingModal({
                 </div>
 
                 <div className="p-5 space-y-6">
+                    {step === "branch" && (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                            <Label className="text-base font-bold text-foreground">Select a Branch</Label>
+                            <div className="grid gap-2.5">
+                                {branches.map((b) => (
+                                    <button
+                                        key={b.id}
+                                        onClick={() => {
+                                            setFormData({ ...formData, branchId: b.id });
+                                            nextStep();
+                                        }}
+                                        className={cn(
+                                            "flex items-center gap-3.5 p-3.5 rounded-lg border transition-all hover:border-primary/50 hover:bg-primary/5 text-left",
+                                            formData.branchId === b.id ? "border-primary bg-primary/5 shadow-sm" : "border-border"
+                                        )}
+                                    >
+                                        <div className="p-2 bg-primary/10 rounded-md text-primary">
+                                            <MapPin className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold">{b.name}</p>
+                                            <p className="text-[11px] text-muted-foreground">{b.address}</p>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                     {step === "type" && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                             <Label className="text-base font-bold text-foreground">What type of consultation do you need?</Label>
@@ -365,19 +441,50 @@ export function ClientBookingModal({
                                                 <Loader2 className="w-5 h-5 animate-spin text-primary" />
                                             </div>
                                         ) : availableSlots.length > 0 ? (
-                                            <div className="grid grid-cols-2 gap-2">
-                                                {availableSlots.map(slot => (
-                                                    <Button
-                                                        key={slot}
-                                                        variant={formData.slot === slot ? "default" : "outline"}
-                                                        onClick={() => setFormData({ ...formData, slot })}
-                                                        className="rounded-md text-xs font-bold transition-all"
-                                                        size="sm"
-                                                    >
-                                                        {slot}
-                                                    </Button>
-                                                ))}
-                                            </div>
+                                            <TooltipProvider>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {availableSlots.map(slotData => {
+                                                        const slotLabel = typeof slotData === 'string' ? slotData : slotData.slot;
+                                                        const isBlocked = slotData.status === 'BLOCKED' || slotData.status === 'BOOKED';
+
+                                                        return (
+                                                            <Tooltip key={slotLabel}>
+                                                                <TooltipTrigger asChild>
+                                                                    <div className="relative">
+                                                                        <Button
+                                                                            variant={formData.slot === slotLabel ? "default" : "outline"}
+                                                                            onClick={() => !isBlocked && setFormData({ ...formData, slot: slotLabel })}
+                                                                            disabled={isBlocked}
+                                                                            className={cn(
+                                                                                "w-full rounded-md text-[11px] font-bold transition-all relative overflow-hidden h-9 px-2",
+                                                                                isBlocked && "bg-muted/50 border-muted text-muted-foreground/60 cursor-not-allowed opacity-90",
+                                                                                slotData.status === 'BLOCKED' && "bg-stripes border-risk/10"
+                                                                            )}
+                                                                            size="sm"
+                                                                        >
+                                                                            <span className="relative z-10 flex items-center justify-center gap-1.5 line-clamp-1">
+                                                                                {slotData.status === 'BLOCKED' && <Lock className="w-3 h-3 text-risk/50" />}
+                                                                                {slotData.status === 'BOOKED' && <Activity className="w-3 h-3 text-accent/50" />}
+                                                                                {slotLabel}
+                                                                            </span>
+                                                                        </Button>
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                {isBlocked && (
+                                                                    <TooltipContent side="top" className="bg-popover border border-border shadow-md px-3 py-1.5">
+                                                                        <p className="text-[10px] font-bold uppercase tracking-tight text-foreground/80">
+                                                                            {slotData.status === 'BLOCKED' ? "Blocked – Leave" : "Reserved"}
+                                                                        </p>
+                                                                        <p className="text-[10px] text-muted-foreground leading-tight">
+                                                                            {slotData.reason || "Slot unavailable"} ({slotLabel})
+                                                                        </p>
+                                                                    </TooltipContent>
+                                                                )}
+                                                            </Tooltip>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </TooltipProvider>
                                         ) : (
                                             <div className="text-center p-4 bg-muted/50 rounded-lg text-[11px] font-medium text-muted-foreground">
                                                 No slots available for this day. Try another date.

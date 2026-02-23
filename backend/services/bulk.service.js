@@ -25,6 +25,7 @@ export class BulkService {
     }
 
     static async initiatePatientImport(userId, filePath, totalRecords) {
+        const user = await prisma.user.findUnique({ where: { id: userId } });
         return prisma.bulkOperation.create({
             data: {
                 type: 'PATIENT_IMPORT',
@@ -32,17 +33,22 @@ export class BulkService {
                 status: 'PENDING',
                 totalRecords,
                 fileUrl: filePath,
+                branchId: user?.branchId || null
             },
         });
     }
 
     static async executePatientImport(userId, patients) {
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        const branchId = user?.branchId || null;
+
         const bulkOp = await prisma.bulkOperation.create({
             data: {
                 type: 'PATIENT_IMPORT',
                 initiatedBy: userId,
                 status: 'IN_PROGRESS',
                 totalRecords: patients.length,
+                branchId: branchId
             },
         });
 
@@ -73,6 +79,7 @@ export class BulkService {
                         age: data.age ? parseInt(data.age) : null,
                         gender: data.gender || null,
                         therapyType: data.therapyType || null,
+                        branchId: branchId // Lockdown to the importer's branch
                     },
                 });
 

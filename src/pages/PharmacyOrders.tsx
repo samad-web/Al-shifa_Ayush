@@ -18,6 +18,7 @@ import { toast } from "sonner";
 
 export default function PharmacyOrders() {
     const [orders, setOrders] = useState<any[]>([]);
+    const [pagination, setPagination] = useState<any>({ total: 0, page: 1, limit: 20, totalPages: 0 });
     const [loading, setLoading] = useState(true);
 
     const fetchOrders = async () => {
@@ -27,7 +28,12 @@ export default function PharmacyOrders() {
             });
             if (res.ok) {
                 const data = await res.json();
-                setOrders(data);
+                if (data.orders) {
+                    setOrders(data.orders);
+                    setPagination(data.pagination);
+                } else {
+                    setOrders(data);
+                }
             }
         } catch (err) {
             console.error("Failed to fetch orders", err);

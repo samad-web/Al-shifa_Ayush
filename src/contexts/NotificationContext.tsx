@@ -7,6 +7,7 @@ export interface Notification {
     type: string;
     title: string;
     message: string;
+    priority: 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
     timestamp: Date;
     read: boolean;
     data?: any;
@@ -91,6 +92,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                 ...notification,
                 timestamp: new Date(notification.createdAt),
                 read: notification.isRead,
+                priority: notification.priority || 'INFO',
             };
 
             setNotifications((prev) => [newNotif, ...prev]);

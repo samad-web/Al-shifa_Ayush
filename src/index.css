@@ -294,4 +294,15 @@
   .scrollbar-calm::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground) / 0.3);
   }
+
+  /* Diagonal Stripes for Blocked Slots */
+  .bg-stripes {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 10px,
+      hsl(var(--muted-foreground) / 0.05) 10px,
+      hsl(var(--muted-foreground) / 0.05) 20px
+    );
+  }
 }

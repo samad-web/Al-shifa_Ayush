@@ -1,5 +1,6 @@
 import prisma from '../lib/prisma.js';
 import path from 'path';
+import { notificationService } from './notification.service.js';
 
 const TRIAGE_CONFIG = {
     SEVERITY_THRESHOLDS: {
@@ -68,6 +69,25 @@ export class TriageService {
         });
 
         console.log(`[Triage Decision] Patient: ${patientRecord.id} | Score: ${painSeverity} | Result: ${classification}`);
+
+        // Notify Admin Doctors if priority is HIGH or Escalated
+        if (severity === 'HIGH' || triageSession.isEscalated) {
+            const adminDoctors = await prisma.user.findMany({
+                where: { role: 'ADMIN_DOCTOR', branchId: patientRecord.branchId },
+                select: { id: true }
+            });
+
+            for (const admin of adminDoctors) {
+                await notificationService.createNotification({
+                    userId: admin.id,
+                    type: 'TRIAGE_ESCALATION',
+                    title: '🚨 High Priority Triage Escalation',
+                    message: `A new high-severity triage assessment has been submitted by ${patientRecord.fullName || 'a patient'}. Immediate review required.`,
+                    priority: 'HIGH',
+                    data: { triageSessionId: triageSession.id, patientId: patientRecord.id }
+                });
+            }
+        }
 
         if (documentIds && documentIds.length > 0) {
             await prisma.document.updateMany({

@@ -23,6 +23,14 @@ const createBlockSchema = z.object({
     message: "Either doctorId or therapistId must be provided"
 });
 
+const updateBlockSchema = z.object({
+    date: z.string().optional(),
+    dayOfWeek: z.number().min(0).max(6).optional(),
+    startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Invalid time format HH:mm').optional(),
+    endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Invalid time format HH:mm').optional(),
+    reason: z.string().optional()
+});
+
 router.post('/block', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR', 'DOCTOR', 'THERAPIST']), validate({ body: createBlockSchema }), async (req, res, next) => {
     try {
         const { doctorId, therapistId } = req.body;
@@ -41,6 +49,30 @@ router.post('/block', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR', '
 
         const block = await AvailabilityService.createBlock(req.body);
         res.status(201).json(block);
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.put('/block/:id', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR', 'DOCTOR', 'THERAPIST']), validate({ body: updateBlockSchema }), async (req, res, next) => {
+    try {
+        const isAdmin = ['ADMIN', 'ADMIN_DOCTOR'].includes(req.user.role);
+
+        const existing = await prisma.blockedSlot.findUnique({ where: { id: req.params.id } });
+        if (!existing) return res.status(404).json({ message: "Block not found" });
+
+        if (!isAdmin) {
+            if (req.user.role === 'DOCTOR') {
+                const doc = await prisma.doctor.findUnique({ where: { userId: req.user.id } });
+                if (existing.doctorId !== doc?.id) return res.status(403).json({ message: "Forbidden" });
+            } else if (req.user.role === 'THERAPIST') {
+                const ther = await prisma.therapist.findUnique({ where: { userId: req.user.id } });
+                if (existing.therapistId !== ther?.id) return res.status(403).json({ message: "Forbidden" });
+            }
+        }
+
+        const block = await AvailabilityService.updateBlock(req.params.id, req.body);
+        res.json(block);
     } catch (err) {
         next(err);
     }

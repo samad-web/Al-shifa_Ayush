@@ -23,6 +23,7 @@ export class UserService {
     static async getClinicalGamification() {
         const [doctors, therapists] = await Promise.all([
             prisma.doctor.findMany({
+                where: { user: { role: { notIn: ['ADMIN', 'ADMIN_DOCTOR'] } } },
                 include: {
                     user: true,
                     appointments: true,
@@ -30,6 +31,7 @@ export class UserService {
                 },
             }),
             prisma.therapist.findMany({
+                where: { user: { role: { notIn: ['ADMIN', 'ADMIN_DOCTOR'] } } },
                 include: {
                     user: true,
                     appointments: true,

@@ -8,8 +8,10 @@ import { cn } from '@/lib/utils';
 
 export function NotificationBell() {
     const [isOpen, setIsOpen] = useState(false);
-    const { unreadCount } = useNotifications();
+    const { unreadCount, notifications } = useNotifications();
     const bellRef = useRef<HTMLDivElement>(null);
+
+    const hasHighPriority = notifications.some(n => !n.read && n.priority === 'HIGH');
 
     // Close panel when clicking outside
     useEffect(() => {
@@ -35,15 +37,22 @@ export function NotificationBell() {
                 size="icon"
                 onClick={() => setIsOpen(!isOpen)}
                 className={cn(
-                    'relative',
-                    isOpen && 'bg-accent'
+                    'relative transition-all duration-300',
+                    isOpen && 'bg-accent',
+                    hasHighPriority && unreadCount > 0 && 'text-destructive'
                 )}
             >
-                <Bell className="h-5 w-5" />
+                <Bell className={cn(
+                    "h-5 w-5",
+                    hasHighPriority && unreadCount > 0 && "fill-destructive/10 animate-pulse"
+                )} />
                 {unreadCount > 0 && (
                     <Badge
-                        variant="destructive"
-                        className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+                        variant={hasHighPriority ? "destructive" : "default"}
+                        className={cn(
+                            "absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-[10px] font-bold ring-2 ring-background",
+                            hasHighPriority && "bg-destructive animate-bounce"
+                        )}
                     >
                         {unreadCount > 9 ? '9+' : unreadCount}
                     </Badge>
@@ -51,7 +60,7 @@ export function NotificationBell() {
             </Button>
 
             {isOpen && (
-                <div className="absolute right-0 top-full mt-2 z-50">
+                <div className="absolute right-0 top-full mt-2 z-50 animate-in fade-in zoom-in duration-200 origin-top-right">
                     <NotificationPanel onClose={() => setIsOpen(false)} />
                 </div>
             )}

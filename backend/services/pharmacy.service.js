@@ -1,4 +1,5 @@
 import prisma from '../lib/prisma.js';
+import logger from '../lib/logger.js';
 import { inventoryService } from './inventory.service.js';
 
 export class PharmacyService {
@@ -156,23 +157,41 @@ export class PharmacyService {
     }
 
     static async getOrders(filters = {}, branchId) {
-        const { status, urgency, patientId } = filters;
+        const { status, urgency, patientId, page = 1, limit = 20 } = filters;
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const take = parseInt(limit);
+
         const where = {};
         if (status) where.status = status;
         if (urgency) where.urgency = urgency;
         if (patientId) where.patientId = patientId;
         if (branchId) where.branchId = branchId;
 
-        return prisma.pharmacyOrder.findMany({
-            where,
-            include: {
-                items: { include: { medicine: true } },
-                patient: { select: { fullName: true, id: true } },
-                orderer: { select: { email: true, role: true } },
-                prescription: { select: { medicationName: true, doctor: { select: { fullName: true } } } }
-            },
-            orderBy: { createdAt: 'desc' }
-        });
+        const [orders, total] = await Promise.all([
+            prisma.pharmacyOrder.findMany({
+                where,
+                include: {
+                    items: { include: { medicine: true } },
+                    patient: { select: { fullName: true, id: true } },
+                    orderer: { select: { email: true, role: true } },
+                    prescription: { select: { medicationName: true, doctor: { select: { fullName: true } } } }
+                },
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take
+            }),
+            prisma.pharmacyOrder.count({ where })
+        ]);
+
+        return {
+            orders,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: take,
+                totalPages: Math.ceil(total / take)
+            }
+        };
     }
 
     static async updateOrderStatus(userId, orderId, status) {
@@ -196,11 +215,15 @@ export class PharmacyService {
             });
         }
 
-        return prisma.pharmacyOrder.update({
+        const updatedOrder = await prisma.pharmacyOrder.update({
             where: { id: orderId },
             data: { status },
             include: { items: { include: { medicine: true } }, patient: true }
         });
+
+        logger.audit('UPDATE_ORDER_STATUS', userId, orderId, { oldStatus: order.status, newStatus: status });
+
+        return updatedOrder;
     }
 
     static async getDispenseHistory(branchId) {

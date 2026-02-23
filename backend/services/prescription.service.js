@@ -81,6 +81,7 @@ export class PrescriptionService {
                 duration,
                 notes,
                 videoUrl,
+                sku: data.sku,
                 branchId: patient.branchId,
                 lowStockThreshold: data.lowStockThreshold ? parseInt(data.lowStockThreshold) : 5,
             }
@@ -154,6 +155,7 @@ export class PrescriptionService {
                     duration: med.duration,
                     notes: extendedNotes,
                     videoUrl: med.videoUrl,
+                    sku: med.sku,
                     branchId: patient.branchId,
                     lowStockThreshold: med.lowStockThreshold || 5,
                 }

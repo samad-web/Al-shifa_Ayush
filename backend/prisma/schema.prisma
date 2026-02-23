@@ -270,6 +270,7 @@ model Prescription {
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   videoUrl          String?
+  sku               String?
   doctor            Doctor?         @relation(fields: [doctorId], references: [id])
   medicine          Medicine?       @relation(fields: [medicineId], references: [id])
   patient           Patient         @relation(fields: [patientId], references: [id])
@@ -304,6 +305,7 @@ model Notification {
   type      String
   title     String
   message   String
+  priority  NotificationPriority @default(INFO)
   isRead    Boolean  @default(false)
   data      Json?
   createdAt DateTime @default(now())
@@ -311,6 +313,13 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([createdAt])
+}
+
+enum NotificationPriority {
+  HIGH
+  MEDIUM
+  LOW
+  INFO
 }
 
 model NotificationPreference {
@@ -446,6 +455,7 @@ model Medicine {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   videoUrl      String?
+  sku           String?
   dispenseItems DispenseItem[]
   invoiceItems       InvoiceItem[]
   stocks             MedicineStock[]

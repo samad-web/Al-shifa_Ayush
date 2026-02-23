@@ -57,7 +57,7 @@ router.post('/patients/import', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_
     }
 });
 
-router.get('/operations/:id', authMiddleware, async (req, res, next) => {
+router.get('/operations/:id', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR']), async (req, res, next) => {
     try {
         const operation = await BulkService.getOperationStatus(req.params.id);
         res.json({ success: true, operation });

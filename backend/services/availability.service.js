@@ -10,10 +10,6 @@ export class AvailabilityService {
             throw new Error('Either doctorId or therapistId is required');
         }
 
-        if (!date && dayOfWeek === undefined) {
-            throw new Error('Either specific date or day of week is required');
-        }
-
         // Validate time format HH:mm
         const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
         if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) {
@@ -24,18 +20,9 @@ export class AvailabilityService {
             throw new Error('Start time must be before end time');
         }
 
-        // Overlap Validation
-        // We need to look for existing blocks that overlap with the requested time.
-        // A block overlaps if:
-        // 1. It belongs to the same clinician
-        // 2. The day/date matches:
-        //    a. If we provide a specific date, it overlaps with:
-        //       - Same date specific blocks
-        //       - Same day-of-week recurring blocks
-        //    b. If we provide a recurring day, it overlaps with:
-        //       - Same day-of-week recurring blocks
-        //       - Any specific date blocks that fall on that day-of-week
+        await this.validateBlockOverlap(data);
 
+        // Check for conflicting appointments
         const clinicianFilter = {
             OR: [
                 { doctorId: doctorId || undefined },
@@ -43,41 +30,6 @@ export class AvailabilityService {
             ]
         };
 
-        const existingBlocks = await prisma.blockedSlot.findMany({
-            where: {
-                ...clinicianFilter,
-                OR: [
-                    // Same specific date
-                    { date: date ? new Date(date) : null },
-                    // Same day of week (recurring)
-                    { dayOfWeek: dayOfWeek !== undefined ? parseInt(dayOfWeek) : null },
-                    // If we are adding a recurring day, check for specific dates that match that day
-                    ...(dayOfWeek !== undefined ? [{
-                        date: { not: null },
-                        // Unfortunately Prisma can't easily filter by dayOfWeek on a DateTime field in a generic across-DB way here without raw SQL or JS filtering
-                    }] : []),
-                    // If we are adding a specific date, check for recurring blocks on that day of week
-                    ...(date ? [{
-                        dayOfWeek: new Date(date).getDay(),
-                        date: null
-                    }] : [])
-                ]
-            }
-        });
-
-        for (const block of existingBlocks) {
-            // Additional JS check for recurring vs specific date on the same day if adding a recurring block
-            if (dayOfWeek !== undefined && block.date) {
-                if (new Date(block.date).getDay() !== parseInt(dayOfWeek)) continue;
-            }
-
-            // Overlap if (A < D) and (B > C)
-            if (startTime < block.endTime && endTime > block.startTime) {
-                throw new Error(`This time slot overlaps with an existing blocked slot (${block.reason || 'No reason'})`);
-            }
-        }
-
-        // Check for conflicting appointments
         const appointmentWhere = {
             ...clinicianFilter,
             status: { notIn: ['CANCELLED', 'REJECTED'] },
@@ -88,8 +40,6 @@ export class AvailabilityService {
             const endOfDate = new Date(new Date(date).setHours(23, 59, 59, 999));
             appointmentWhere.date = { gte: startOfDate, lte: endOfDate };
         } else if (dayOfWeek !== undefined) {
-            // For recurring blocks, we just check future appointments on that day of week
-            // Note: This is a bit complex for a simple query, we'll check the next 3 months of appointments
             const futureDate = new Date();
             const threeMonthsLater = new Date();
             threeMonthsLater.setMonth(futureDate.getMonth() + 3);
@@ -103,9 +53,8 @@ export class AvailabilityService {
 
         for (const apt of conflictingAppointments) {
             const aptStart = apt.date.toTimeString().slice(0, 5);
-            const aptEnd = new Date(apt.date.getTime() + 60 * 60 * 1000).toTimeString().slice(0, 5); // Assuming 1hr
+            const aptEnd = new Date(apt.date.getTime() + 60 * 60 * 1000).toTimeString().slice(0, 5);
 
-            // If recurring, check if the appointment falls on the requested dayOfWeek
             if (dayOfWeek !== undefined && apt.date.getDay() !== parseInt(dayOfWeek)) continue;
 
             if (startTime < aptEnd && endTime > aptStart) {
@@ -124,6 +73,89 @@ export class AvailabilityService {
                 reason
             }
         });
+    }
+
+    static async updateBlock(id, data) {
+        const { startTime, endTime, date, dayOfWeek, reason } = data;
+
+        const existing = await prisma.blockedSlot.findUnique({ where: { id } });
+        if (!existing) throw new Error('Block not found');
+
+        // Merge existing and new data for validation
+        const validationData = {
+            ...existing,
+            ...data,
+            excludeId: id
+        };
+
+        // Re-validate time if provided
+        if (startTime || endTime) {
+            const s = startTime || existing.startTime;
+            const e = endTime || existing.endTime;
+            if (s >= e) throw new Error('Start time must be before end time');
+        }
+
+        await this.validateBlockOverlap(validationData);
+
+        return prisma.blockedSlot.update({
+            where: { id },
+            data: {
+                date: date ? new Date(date) : undefined,
+                dayOfWeek: dayOfWeek !== undefined ? parseInt(dayOfWeek) : undefined,
+                startTime: data.startTime,
+                endTime: data.endTime,
+                reason: data.reason
+            }
+        });
+    }
+
+    static async validateBlockOverlap(data) {
+        const { doctorId, therapistId, date, dayOfWeek, startTime, endTime, excludeId } = data;
+
+        const clinicianFilter = {
+            OR: [
+                { doctorId: doctorId || undefined },
+                { therapistId: therapistId || undefined }
+            ]
+        };
+
+        // Fetch potential overlaps
+        // We fetch candidates and filter in JS to ensure absolute precision between specific dates and recurring days
+        const candidates = await prisma.blockedSlot.findMany({
+            where: {
+                ...clinicianFilter,
+                id: { not: excludeId }
+            }
+        });
+
+        const newDateObj = date ? new Date(date) : null;
+        const newDay = dayOfWeek !== undefined ? parseInt(dayOfWeek) : (newDateObj ? newDateObj.getDay() : null);
+
+        for (const block of candidates) {
+            let matchesDay = false;
+
+            if (date && block.date) {
+                // Both specific dates - must be same day
+                matchesDay = new Date(date).toISOString().split('T')[0] === new Date(block.date).toISOString().split('T')[0];
+            } else if (dayOfWeek !== undefined && block.dayOfWeek !== null) {
+                // Both recurring - must be same day of week
+                matchesDay = parseInt(dayOfWeek) === block.dayOfWeek;
+            } else if (date && block.dayOfWeek !== null) {
+                // New is specific, existing is recurring
+                matchesDay = new Date(date).getDay() === block.dayOfWeek;
+            } else if (dayOfWeek !== undefined && block.date) {
+                // New is recurring, existing is specific
+                matchesDay = new Date(block.date).getDay() === parseInt(dayOfWeek);
+            }
+
+            if (matchesDay) {
+                // Overlap if (newStart < existingEnd) AND (newEnd > existingStart)
+                if (startTime < block.endTime && endTime > block.startTime) {
+                    console.log(`[Availability Conflict] User: ${doctorId || therapistId} | Input: ${startTime}-${endTime} | Conflict: ${block.startTime}-${block.endTime} (${block.reason || 'No reason'})`);
+                    throw new Error(`Time slot overlaps with an existing blocked slot (${block.reason || 'Leave/Blocked'})`);
+                }
+            }
+        }
     }
 
     static async deleteBlock(id) {
@@ -151,6 +183,7 @@ export class AvailabilityService {
         const dayOfWeek = appointmentDate.getDay(); // 0-6 Sunday-Saturday
 
         // Get all blocks for this doctor/therapist that match either the date OR the day of week
+        const dateStrOnly = new Date(dateString).toISOString().split('T')[0];
         const blocks = await prisma.blockedSlot.findMany({
             where: {
                 OR: [
@@ -161,14 +194,12 @@ export class AvailabilityService {
                     {
                         OR: [
                             {
-                                // Specific date match
                                 date: {
-                                    gte: new Date(new Date(dateString).setHours(0, 0, 0, 0)),
-                                    lt: new Date(new Date(dateString).setHours(24, 0, 0, 0))
+                                    gte: new Date(dateStrOnly + 'T00:00:00.000Z'),
+                                    lte: new Date(dateStrOnly + 'T23:59:59.999Z')
                                 }
                             },
                             {
-                                // Recurring day match
                                 dayOfWeek: dayOfWeek,
                                 date: null
                             }
@@ -225,31 +256,45 @@ export class AvailabilityService {
             })
         ]);
 
-        const busySlots = [
-            ...blocks.map(b => ({ start: b.startTime, end: b.endTime })),
-            ...appointments.map(a => {
-                const start = a.date.toTimeString().slice(0, 5);
-                const end = new Date(a.date.getTime() + 60 * 60 * 1000).toTimeString().slice(0, 5);
-                return { start, end };
-            })
-        ];
-
-        // 3. Generate candidate hours and filter them
-        const availableSlots = [];
+        const slots = [];
         for (let hour = workingStart; hour < workingEnd; hour++) {
             const slotStart = `${hour.toString().padStart(2, '0')}:00`;
             const slotEnd = `${(hour + 1).toString().padStart(2, '0')}:00`;
+            const slotLabel = `${slotStart} - ${slotEnd}`;
 
-            const isOverlap = busySlots.some(busy => {
-                // Overlap if (slotStart < busy.end) and (slotEnd > busy.start)
-                return slotStart < busy.end && slotEnd > busy.start;
+            // Check if blocked by leave
+            const block = blocks.find(b => slotStart < b.endTime && slotEnd > b.startTime);
+            if (block) {
+                slots.push({
+                    slot: slotLabel,
+                    status: 'BLOCKED',
+                    reason: block.reason || 'Doctor unavailable (Leave)'
+                });
+                continue;
+            }
+
+            // Check if booked by appointment
+            const appointment = appointments.find(a => {
+                const start = a.date.toTimeString().slice(0, 5);
+                const end = new Date(a.date.getTime() + 60 * 60 * 1000).toTimeString().slice(0, 5);
+                return slotStart < end && slotEnd > start;
             });
 
-            if (!isOverlap) {
-                availableSlots.push(`${slotStart} - ${slotEnd}`);
+            if (appointment) {
+                slots.push({
+                    slot: slotLabel,
+                    status: 'BOOKED',
+                    reason: 'Slot already reserved'
+                });
+                continue;
             }
+
+            slots.push({
+                slot: slotLabel,
+                status: 'AVAILABLE'
+            });
         }
 
-        return availableSlots;
+        return slots;
     }
 }

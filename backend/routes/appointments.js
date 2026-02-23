@@ -16,6 +16,7 @@ const appointmentSchema = z.object({
   consultationType: z.enum(['DOCTOR', 'THERAPIST', 'COMBINED']).optional(),
   consultationMode: z.enum(['OFFLINE', 'ONLINE']).optional(),
   notes: z.string().optional(),
+  branchId: z.string().optional(),
   contactDetails: z.object({
     fullName: z.string().min(2),
     phoneNumber: z.string(),
@@ -29,7 +30,7 @@ const updateAppointmentSchema = z.object({
   notes: z.string().optional()
 });
 
-router.get('/', authMiddleware, async (req, res, next) => {
+router.get('/', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR', 'DOCTOR', 'THERAPIST', 'PATIENT']), async (req, res, next) => {
   try {
     const appointments = await AppointmentService.getAppointments(req.user);
     res.json(appointments);
@@ -43,8 +44,6 @@ router.post('/', authMiddleware, roleMiddleware(['PATIENT', 'ADMIN', 'ADMIN_DOCT
     // Strict control for PATIENT: ignore administrative fields
     if (req.user.role === 'PATIENT') {
       const { status, ...patientBody } = req.body;
-      // Patient can only set notes, triageSessionId and essential booking fields
-      // Backend service will force status to PENDING
       const appointment = await AppointmentService.createAppointment(req.user, patientBody);
       return res.status(201).json(appointment);
     }
@@ -56,7 +55,7 @@ router.post('/', authMiddleware, roleMiddleware(['PATIENT', 'ADMIN', 'ADMIN_DOCT
   }
 });
 
-router.get('/available-slots', authMiddleware, async (req, res, next) => {
+router.get('/available-slots', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR', 'DOCTOR', 'THERAPIST', 'PATIENT']), async (req, res, next) => {
   try {
     const { clinicianId, date } = req.query;
     if (!clinicianId || !date) {
@@ -69,16 +68,16 @@ router.get('/available-slots', authMiddleware, async (req, res, next) => {
   }
 });
 
-router.get('/available-staff', authMiddleware, async (req, res, next) => {
+router.get('/available-staff', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR', 'DOCTOR', 'THERAPIST', 'PATIENT']), async (req, res, next) => {
   try {
-    const staff = await AppointmentService.getAvailableStaff(req.user);
+    const staff = await AppointmentService.getAvailableStaff(req.user, req.query);
     res.json(staff);
   } catch (err) {
     next(err);
   }
 });
 
-router.put('/:id', authMiddleware, validate({ body: updateAppointmentSchema }), async (req, res, next) => {
+router.put('/:id', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR', 'DOCTOR', 'THERAPIST', 'PATIENT']), validate({ body: updateAppointmentSchema }), async (req, res, next) => {
   try {
     const appointment = await AppointmentService.updateAppointment(req.params.id, req.user, req.body);
     res.json(appointment);
@@ -87,9 +86,9 @@ router.put('/:id', authMiddleware, validate({ body: updateAppointmentSchema }), 
   }
 });
 
-router.delete('/:id', authMiddleware, async (req, res, next) => {
+router.delete('/:id', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR', 'DOCTOR', 'THERAPIST', 'PATIENT']), async (req, res, next) => {
   try {
-    await AppointmentService.cancelAppointment(req.params.id);
+    await AppointmentService.cancelAppointment(req.params.id, req.user);
     res.json({ message: 'Appointment cancelled successfully' });
   } catch (err) {
     next(err);

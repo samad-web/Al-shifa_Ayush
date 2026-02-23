@@ -68,6 +68,27 @@ router.patch('/config', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR']
  */
 router.get('/:id/breakdown', authMiddleware, async (req, res, next) => {
     try {
+        const isAdmin = ['ADMIN', 'ADMIN_DOCTOR'].includes(req.user.role);
+        const isSelf = req.user.id === req.params.id; // Check if the authenticated user is the one requested
+
+        // Note: For clinicians, req.user.id is the User ID. 
+        // We need to verify if req.params.id matches their Profile ID or User ID.
+        // Leaderboard typically uses profile IDs (Doctor/Therapist ID).
+
+        let canAccess = isAdmin || isSelf;
+
+        if (!canAccess) {
+            const userProfile = req.user.role === 'DOCTOR'
+                ? await prisma.doctor.findUnique({ where: { userId: req.user.id } })
+                : await prisma.therapist.findUnique({ where: { userId: req.user.id } });
+
+            if (userProfile?.id === req.params.id) canAccess = true;
+        }
+
+        if (!canAccess) {
+            return res.status(403).json({ error: 'Forbidden: You can only view your own performance breakdown' });
+        }
+
         const breakdown = await LeaderboardService.getParticipantBreakdown(req.params.id);
         res.json(breakdown);
     } catch (err) {

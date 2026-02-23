@@ -46,7 +46,19 @@ app.use((req, res, next) => {
 // Security Middleware
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
-  contentSecurityPolicy: false, // Disable CSP for easier frontend integration if needed, or configure specifically
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://meet.jit.si"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      imgSrc: ["'self'", "data:", "https:", "http:"],
+      connectSrc: ["'self'", "https://meet.jit.si", "wss://*.jit.si"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'", "https://*.youtube.com", "https://*.vimeo.com"],
+      upgradeInsecureRequests: [],
+    },
+  },
 }));
 
 // Basic Rate Limiting

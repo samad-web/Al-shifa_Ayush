@@ -289,11 +289,6 @@ export default function BranchManagement() {
                                 The clinical branch created successfully.
                             </DialogDescription>
                         </DialogHeader>
-                        <DialogFooter className="sm:justify-center">
-                            <Button className="w-full sm:w-auto" onClick={() => setShowSuccess(false)}>
-                                Continue
-                            </Button>
-                        </DialogFooter>
                     </DialogContent>
                 </Dialog>
             </div>

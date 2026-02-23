@@ -16,12 +16,21 @@ const onboardingSchema = z.object({
   otherHealthInputs: z.record(z.any()).optional(),
 });
 
+const assignPatientSchema = z.object({
+  patientId: z.string(),
+  doctorId: z.string(),
+});
+
+const listDoctorsSchema = z.object({
+  branchId: z.string().optional(),
+});
+
 const createUserSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
-  fullName: z.string().optional(),
+  password: z.string().min(6),
+  fullName: z.string(),
   role: z.enum(['ADMIN', 'ADMIN_DOCTOR', 'DOCTOR', 'THERAPIST', 'PATIENT', 'PHARMACIST']),
-  branchId: z.string().optional()
+  branchId: z.string().optional(),
 });
 
 const updateDoctorSchema = z.object({
@@ -77,7 +86,7 @@ router.get('/doctor-gamification', authMiddleware, roleMiddleware(['DOCTOR', 'AD
   }
 });
 
-router.get('/list-doctors', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR']), async (req, res, next) => {
+router.get('/list-doctors', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR']), validate({ query: listDoctorsSchema }), async (req, res, next) => {
   try {
     const { branchId } = req.query;
     const data = await UserService.listDoctors(branchId);
@@ -132,7 +141,7 @@ router.post('/create', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR'])
   }
 });
 
-router.post('/assign-patient', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR']), async (req, res, next) => {
+router.post('/assign-patient', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR']), validate({ body: assignPatientSchema }), async (req, res, next) => {
   try {
     await UserService.assignPatient(req.body);
     res.json({ message: 'Patient assigned to doctor successfully' });

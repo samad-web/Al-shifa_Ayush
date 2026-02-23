@@ -12,16 +12,40 @@ interface NotificationPanelProps {
 export function NotificationPanel({ onClose }: NotificationPanelProps) {
     const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotifications } = useNotifications();
 
-    const getNotificationIcon = (type: string) => {
-        switch (type) {
-            case 'APPOINTMENT_REMINDER':
-                return <Calendar className="h-4 w-4 text-primary" />;
-            case 'PRESCRIPTION_UPDATE':
-                return <FileText className="h-4 w-4 text-wellness" />;
-            case 'SYSTEM_ALERT':
-                return <AlertCircle className="h-4 w-4 text-attention" />;
+    const getPriorityStyles = (priority: string) => {
+        switch (priority) {
+            case 'HIGH':
+                return {
+                    border: 'border-l-4 border-l-destructive',
+                    bg: 'bg-destructive/5',
+                    text: 'text-destructive',
+                    icon: <AlertCircle className="h-4 w-4 text-destructive" />,
+                    badge: 'bg-destructive text-destructive-foreground'
+                };
+            case 'MEDIUM':
+                return {
+                    border: 'border-l-4 border-l-amber-500',
+                    bg: 'bg-amber-500/5',
+                    text: 'text-amber-600',
+                    icon: <AlertCircle className="h-4 w-4 text-amber-500" />,
+                    badge: 'bg-amber-500 text-white'
+                };
+            case 'LOW':
+                return {
+                    border: 'border-l-4 border-l-blue-500',
+                    bg: 'bg-blue-500/5',
+                    text: 'text-blue-600',
+                    icon: <Bell className="h-4 w-4 text-blue-500" />,
+                    badge: 'bg-blue-500 text-white'
+                };
             default:
-                return <Bell className="h-4 w-4 text-muted-foreground" />;
+                return {
+                    border: 'border-l-4 border-l-transparent',
+                    bg: '',
+                    text: '',
+                    icon: <Bell className="h-4 w-4 text-muted-foreground" />,
+                    badge: 'bg-muted text-muted-foreground'
+                };
         }
     };
 
@@ -32,7 +56,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     };
 
     return (
-        <Card className="w-[380px] max-w-[calc(100vw-2rem)] shadow-lg">
+        <Card className="w-[380px] max-w-[calc(100vw-2rem)] shadow-lg overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b">
                 <div className="flex items-center gap-2">
                     <Bell className="h-5 w-5" />
@@ -58,7 +82,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                 </div>
             </div>
 
-            <ScrollArea className="h-[400px]">
+            <ScrollArea className="h-[450px]">
                 {notifications.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                         <Bell className="h-12 w-12 text-muted-foreground/20 mb-3" />
@@ -66,39 +90,48 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                     </div>
                 ) : (
                     <div className="divide-y">
-                        {notifications.map((notification) => (
-                            <div
-                                key={notification.id}
-                                onClick={() => handleNotificationClick(notification)}
-                                className={`p-4 cursor-pointer transition-colors hover:bg-accent/50 ${!notification.read ? 'bg-primary/5' : ''
-                                    }`}
-                            >
-                                <div className="flex gap-3">
-                                    <div className="flex-shrink-0 mt-1">
-                                        {getNotificationIcon(notification.type)}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-start justify-between gap-2 mb-1">
-                                            <h4 className={`text-sm font-medium ${!notification.read ? 'font-semibold' : ''
-                                                }`}>
-                                                {notification.title}
-                                            </h4>
-                                            {!notification.read && (
-                                                <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0 mt-1" />
-                                            )}
+                        {notifications.map((notification) => {
+                            const styles = getPriorityStyles(notification.priority);
+                            return (
+                                <div
+                                    key={notification.id}
+                                    onClick={() => handleNotificationClick(notification)}
+                                    className={`p-4 cursor-pointer transition-colors hover:bg-accent/50 group relative ${styles.border} ${!notification.read ? styles.bg || 'bg-primary/5' : ''
+                                        }`}
+                                >
+                                    <div className="flex gap-3">
+                                        <div className="flex-shrink-0 mt-1">
+                                            {styles.icon}
                                         </div>
-                                        <p className="text-sm text-muted-foreground line-clamp-2">
-                                            {notification.message}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            {formatDistanceToNow(new Date(notification.timestamp), {
-                                                addSuffix: true,
-                                            })}
-                                        </p>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-start justify-between gap-2 mb-1">
+                                                <div className="flex flex-col gap-1">
+                                                    <h4 className={`text-sm font-medium leading-none ${!notification.read ? 'font-bold' : ''} ${notification.priority === 'HIGH' ? 'text-destructive' : ''}`}>
+                                                        {notification.title}
+                                                    </h4>
+                                                    {notification.priority !== 'INFO' && (
+                                                        <span className={`text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-sm w-fit ${styles.badge}`}>
+                                                            {notification.priority}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {!notification.read && (
+                                                    <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0 mt-1" />
+                                                )}
+                                            </div>
+                                            <p className={`text-sm line-clamp-2 ${notification.priority === 'HIGH' && !notification.read ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                                                {notification.message}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground/60 mt-2">
+                                                {formatDistanceToNow(new Date(notification.timestamp), {
+                                                    addSuffix: true,
+                                                })}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </ScrollArea>

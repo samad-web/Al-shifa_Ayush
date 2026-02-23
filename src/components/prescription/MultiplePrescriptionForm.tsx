@@ -4,8 +4,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Panel } from "@/components/ui/panel";
-import { Plus, Trash2, Search, Loader2, CheckCircle2, PlaySquare } from "lucide-react";
+import { Plus, Trash2, Search, Loader2, CheckCircle2, PlaySquare, ChevronsUpDown, Check } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
+import { Badge } from "@/components/ui/badge";
 import {
     Select,
     SelectContent,
@@ -22,6 +37,7 @@ interface Medicine {
     price: number;
     totalStock: number;
     videoUrl?: string;
+    sku?: string;
 }
 
 interface PrescriptionItem {
@@ -34,6 +50,7 @@ interface PrescriptionItem {
     vehicle: string;
     medicineId?: string;
     videoUrl: string;
+    sku?: string;
 }
 
 interface ExternalVideo {
@@ -148,18 +165,31 @@ export function MultiplePrescriptionForm({
         const newItems = [...prescriptionItems];
         newItems[index] = { ...newItems[index], [field]: value };
 
-        // If updating medicationName, try to find medicineId and videoUrl
+        // If updating medicationName (manual or via combobox), try to find medicineId, videoUrl and SKU
         if (field === "medicationName") {
             const med = medicines.find(m => m.name.toLowerCase() === value.toLowerCase());
             if (med) {
                 newItems[index].medicineId = med.id;
-                // @ts-ignore - videoUrl might not be in the local Medicine type yet but is in the backend response
+                newItems[index].sku = med.sku;
+                // @ts-ignore
                 if (med.videoUrl) {
                     newItems[index].videoUrl = med.videoUrl;
                 }
             }
         }
 
+        setPrescriptionItems(newItems);
+    };
+
+    const handleSelectMedicine = (index: number, med: Medicine) => {
+        const newItems = [...prescriptionItems];
+        newItems[index] = {
+            ...newItems[index],
+            medicationName: med.name,
+            medicineId: med.id,
+            sku: med.sku,
+            videoUrl: med.videoUrl || newItems[index].videoUrl
+        };
         setPrescriptionItems(newItems);
     };
 
@@ -232,27 +262,75 @@ export function MultiplePrescriptionForm({
 
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div className="md:col-span-2 space-y-2">
-                                <Label>Medication Name *</Label>
+                                <Label>Medication Name (Search by Name or SKU) *</Label>
                                 <div className="relative">
-                                    <Input
-                                        value={item.medicationName}
-                                        onChange={(e) => updateItem(index, "medicationName", e.target.value)}
-                                        placeholder="Search or type medicine name..."
-                                        list={`med-list-${index}`}
-                                    />
-                                    <datalist id={`med-list-${index}`}>
-                                        {medicines.map(m => (
-                                            <option key={m.id} value={m.name}>{m.brand ? `${m.brand} - ` : ""}{m.totalStock} in stock</option>
-                                        ))}
-                                    </datalist>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                role="combobox"
+                                                className={cn(
+                                                    "w-full justify-between font-normal",
+                                                    !item.medicationName && "text-muted-foreground"
+                                                )}
+                                            >
+                                                {item.medicationName
+                                                    ? (item.sku ? `${item.medicationName} (${item.sku})` : item.medicationName)
+                                                    : "Select medicine..."}
+                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[400px] p-0" align="start">
+                                            <Command>
+                                                <CommandInput placeholder="Search medicine or SKU..." />
+                                                <CommandEmpty>No medicine found.</CommandEmpty>
+                                                <CommandList>
+                                                    <CommandGroup>
+                                                        {medicines.map((med) => (
+                                                            <CommandItem
+                                                                key={med.id}
+                                                                value={`${med.name} ${med.sku || ""}`}
+                                                                onSelect={() => {
+                                                                    handleSelectMedicine(index, med);
+                                                                }}
+                                                            >
+                                                                <div className="flex flex-col">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Check
+                                                                            className={cn(
+                                                                                "mr-2 h-4 w-4",
+                                                                                item.medicineId === med.id ? "opacity-100" : "opacity-0"
+                                                                            )}
+                                                                        />
+                                                                        <span className="font-bold">{med.name}</span>
+                                                                        {med.sku && (
+                                                                            <Badge variant="secondary" className="text-[9px] font-black uppercase py-0 px-1">
+                                                                                {med.sku}
+                                                                            </Badge>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="ml-6 flex items-center gap-3 text-[10px] text-muted-foreground">
+                                                                        <span>{med.brand || "Generics"}</span>
+                                                                        <span className={med.totalStock < 10 ? "text-attention font-bold" : ""}>
+                                                                            {med.totalStock} in stock
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandGroup>
+                                                </CommandList>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
                                     {item.medicationName && (
                                         <div className="mt-1">
-                                            {medicines.find(m => m.name.toLowerCase() === item.medicationName.toLowerCase()) ? (
-                                                <span className="text-[10px] text-wellness flex items-center gap-1">
-                                                    <CheckCircle2 className="w-3 h-3" /> Linked to Inventory
+                                            {item.medicineId ? (
+                                                <span className="text-[10px] text-wellness flex items-center gap-1 font-bold">
+                                                    <CheckCircle2 className="w-3 h-3" /> Selected from Inventory {item.sku ? `(${item.sku})` : ""}
                                                 </span>
                                             ) : (
-                                                <span className="text-[10px] text-muted-foreground italic">Custom entry</span>
+                                                <span className="text-[10px] text-attention font-bold italic">Unlinked Medication</span>
                                             )}
                                         </div>
                                     )}

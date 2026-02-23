@@ -193,7 +193,11 @@ export default function DoctorGamification() {
               <Card className="border-none shadow-sm bg-accent/5">
                 <CardContent className="p-4 text-center">
                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Clinic Response</p>
-                  <p className="text-2xl font-black text-accent">{currentDoc.metrics?.responseTime?.value || 0}m</p>
+                  <p className="text-2xl font-black text-accent">
+                    {currentDoc.metrics?.responseTime?.value !== undefined
+                      ? Number(currentDoc.metrics.responseTime.value).toFixed(1)
+                      : 0}m
+                  </p>
                 </CardContent>
               </Card>
             </div>

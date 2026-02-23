@@ -16,6 +16,7 @@ export default function Appointments() {
     const { role } = useAuth();
     const { addNotification } = useNotifications();
     const [appointments, setAppointments] = useState<any[]>([]);
+    const [pagination, setPagination] = useState<any>({ total: 0, page: 1, limit: 20, totalPages: 0 });
     const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
     const [editingAppointment, setEditingAppointment] = useState<any>(null);
@@ -34,7 +35,12 @@ export default function Appointments() {
             });
             if (res.ok) {
                 const data = await res.json();
-                setAppointments(data);
+                if (data.appointments) {
+                    setAppointments(data.appointments);
+                    setPagination(data.pagination);
+                } else {
+                    setAppointments(data);
+                }
             }
         } catch (error) {
             console.error("Failed to fetch appointments:", error);
@@ -85,6 +91,7 @@ export default function Appointments() {
                     title: "Appointment Confirmed",
                     message: `Your appointment on ${new Date(updatedAppointment.date).toLocaleDateString()} has been approved.`,
                     data: { appointmentId: updatedAppointment.id },
+                    priority: 'MEDIUM'
                 });
 
                 fetchAppointments();
@@ -117,6 +124,7 @@ export default function Appointments() {
                     title: "Appointment Not Approved",
                     message: `Your appointment request for ${new Date(updatedAppointment.date).toLocaleDateString()} was not approved.`,
                     data: { appointmentId: updatedAppointment.id },
+                    priority: 'MEDIUM'
                 });
 
                 fetchAppointments();

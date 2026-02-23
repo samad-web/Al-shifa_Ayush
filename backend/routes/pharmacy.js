@@ -35,15 +35,25 @@ const dispenseSchema = z.object({
     })),
 });
 
+const orderStatusSchema = z.object({
+    status: z.enum(['PENDING', 'APPROVED', 'DISPATCHED', 'DELIVERED', 'CANCELLED']),
+});
+
 const orderSchema = z.object({
     patientId: z.string(),
     prescriptionId: z.string().optional(),
-    urgency: z.enum(['NORMAL', 'URGENT', 'CRITICAL']).optional(),
-    notes: z.string().optional(),
     items: z.array(z.object({
         medicineId: z.string(),
-        quantity: z.number().min(1),
+        quantity: z.number(),
     })),
+    urgency: z.enum(['NORMAL', 'URGENT', 'CRITICAL']).optional(),
+    notes: z.string().optional(),
+});
+
+const listOrdersSchema = z.object({
+    page: z.string().optional().transform(v => v ? parseInt(v) : 1),
+    limit: z.string().optional().transform(v => v ? parseInt(v) : 20),
+    status: z.string().optional(),
 });
 
 router.get('/medicines', authMiddleware, async (req, res, next) => {
@@ -118,7 +128,7 @@ router.post('/orders', authMiddleware, roleMiddleware(['ADMIN', 'ADMIN_DOCTOR', 
     }
 });
 
-router.get('/orders', authMiddleware, async (req, res, next) => {
+router.get('/orders', authMiddleware, validate({ query: listOrdersSchema }), async (req, res, next) => {
     try {
         const data = await PharmacyService.getOrders(req.query, req.user.branchId);
         res.json(data);
@@ -127,7 +137,7 @@ router.get('/orders', authMiddleware, async (req, res, next) => {
     }
 });
 
-router.patch('/orders/:id/status', authMiddleware, roleMiddleware(['PHARMACIST', 'ADMIN', 'ADMIN_DOCTOR']), async (req, res, next) => {
+router.patch('/orders/:id/status', authMiddleware, roleMiddleware(['PHARMACIST', 'ADMIN', 'ADMIN_DOCTOR']), validate({ body: orderStatusSchema }), async (req, res, next) => {
     try {
         const { status } = req.body;
         const data = await PharmacyService.updateOrderStatus(req.user.id, req.params.id, status);

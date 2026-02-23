@@ -25,6 +25,7 @@ const addPrescriptionSchema = z.object({
   duration: z.string(),
   notes: z.string().optional(),
   videoUrl: z.string().url().optional().or(z.literal("")),
+  sku: z.string().optional(),
 });
 
 router.get('/patient/:id', authMiddleware, async (req, res, next) => {
@@ -48,6 +49,7 @@ const batchPrescriptionSchema = z.object({
     vehicle: z.string().optional(),
     medicineId: z.string().optional(),
     videoUrl: z.string().url().optional().or(z.literal("")),
+    sku: z.string().optional(),
   })),
 });
 
